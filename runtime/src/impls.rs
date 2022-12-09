@@ -16,7 +16,7 @@
 
 //! Some configurable implementations as associated type for the Kumandra runtime.
 
-use crate::{AccountId, Authorship, Balances, NegativeImbalance};
+use crate::{Authorship, Balances, NegativeImbalance};
 use frame_support::traits::{Currency, OnUnbalanced};
 
 pub struct Author;
