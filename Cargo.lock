@@ -1432,6 +1432,7 @@ dependencies = [
  "pallet-nomination-pools-runtime-api",
  "pallet-offences",
  "pallet-offences-benchmarking",
+ "pallet-poc",
  "pallet-preimage",
  "pallet-proxy",
  "pallet-recovery",
@@ -2233,6 +2234,23 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-poc"
+version = "1.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-babe",
+ "pallet-balances",
+ "pallet-staking",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
 ]
 
 [[package]]

@@ -1,7 +1,7 @@
 [package]
 name = "kumandra-runtime"
 version = "1.0.0"
-authors = ["Selendra <info@selendra.org>"]
+authors = ["Kumandra"]
 description = "Substrate node Kumandra runtime."
 edition = "2021"
 build = "build.rs"
@@ -84,6 +84,8 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-vesting = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 
 # local
+pallet-poc = { path = "../pallets/proof-of-capacity-staking", default-features = false }
+
 kumandra-primitives = { path = "../primitives", default-features = false }
 
 [build-dependencies]
@@ -159,6 +161,7 @@ std = [
 	"pallet-treasury/std",
 	"pallet-child-bounties/std",
 	"pallet-utility/std",
+	"pallet-poc/std",
 
 	"kumandra-primitives/std",
 ]
