@@ -2246,11 +2246,14 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-staking",
+ "pallet-support",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2399,6 +2402,14 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "pallet-support"
+version = "1.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
