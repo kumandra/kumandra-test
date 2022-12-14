@@ -1,13 +1,14 @@
 pub mod weights;
 pub use weights::WeightInfo;
 
-use frame_support::pallet_prelude::{BoundedVec, ConstU32, DispatchResult};
+use frame_support::pallet_prelude::DispatchResult;
 use frame_support::traits::{Currency, LockableCurrency, ReservableCurrency};
 pub use pallet::*;
 use pallet_support::primitives::GIB;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{Percent, RuntimeDebug};
+use sp_std::collections::btree_set::BTreeSet;
 
 pub type BalanceOf<T> =
 	<<T as Config>::StakingCurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -37,7 +38,7 @@ pub struct StakingInfo<AccountId, Balance> {
 	/// Total staking amount
 	pub total_staking: Balance,
 	// /// Other staking
-	pub others: BoundedVec<(AccountId, Balance, Balance), ConstU32<25>>,
+	pub others: Vec<(AccountId, Balance, Balance)>,
 }
 
 #[frame_support::pallet]
@@ -90,11 +91,20 @@ pub mod pallet {
 	#[pallet::getter(fn declared_capacity)]
 	pub(super) type DeclaredCapacity<T> = StorageValue<_, u64, ValueQuery>;
 
+	/// minsers that already registered.
+	#[pallet::storage]
+	#[pallet::getter(fn miners)]
+	pub(super) type Miners<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
+
+	/// miners whom is mining.
+	#[pallet::storage]
+	#[pallet::getter(fn mining_miners)]
+	pub(super) type MiningMiners<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Create a new crowdloaning campaign.
-		Created { id: u32 },
+		Register { miner: T::AccountId, disk: u64 },
 	}
 
 	#[pallet::error]
@@ -120,12 +130,12 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			plot_size: GIB,
 			numeric_id: u128,
-			_miner_proportion: u32,
+			miner_proportion: u32,
 			reward_dest: Option<T::AccountId>,
 		) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
 
-			// let miner_proportion = Percent::from_percent(miner_proportion as u8);
+			let miner_proportion = Percent::from_percent(miner_proportion as u8);
 
 			let kib = plot_size;
 
@@ -160,7 +170,25 @@ pub mod pallet {
 					reward_dest: dest,
 				},
 			);
-			Self::deposit_event(Event::<T>::Created { id: 100 });
+
+			StakingInfoOf::<T>::insert(
+				&miner,
+				StakingInfo {
+					miner: miner.clone(),
+					miner_proportion,
+					total_staking: <BalanceOf<T>>::from(0u32),
+					others: vec![],
+				},
+			);
+
+			AccountIdOfPid::<T>::insert(pid, miner.clone());
+
+			Miners::<T>::mutate(|h| h.insert(miner.clone()));
+
+			MiningMiners::<T>::mutate(|h| h.insert(miner.clone()));
+
+			Self::deposit_event(Event::<T>::Register { miner, disk });
+
 			Ok(())
 		}
 	}
