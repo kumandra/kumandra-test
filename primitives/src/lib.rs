@@ -64,4 +64,5 @@ pub type Block = generic::Block<Header, OpaqueExtrinsic>;
 /// Block ID.
 pub type BlockId = generic::BlockId<Block>;
 
+/// poc memory
 pub type GIB = u64;

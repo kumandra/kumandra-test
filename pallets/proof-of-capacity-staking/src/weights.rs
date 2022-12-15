@@ -22,13 +22,20 @@ use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use sp_std::marker::PhantomData;
 
 pub trait WeightInfo {
-	fn create() -> Weight;
+	fn register() -> Weight;
+	fn request_down_from_list() -> Weight;
 }
 
 /// Weights for pallet_lottery using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
-	fn create() -> Weight {
+	fn register() -> Weight {
+		Weight::from_ref_time(53_225_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn request_down_from_list() -> Weight {
 		Weight::from_ref_time(53_225_000)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))

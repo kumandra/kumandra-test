@@ -17,6 +17,7 @@
 pub use pallet::*;
 
 pub mod weights;
+pub mod traits;
 pub use weights::WeightInfo;
 
 use parity_scale_codec::{Decode, Encode};
@@ -26,9 +27,13 @@ use sp_runtime::{Percent, RuntimeDebug};
 use sp_std::collections::btree_set::BTreeSet;
 
 use frame_support::pallet_prelude::DispatchResult;
-use frame_support::traits::{Currency, LockableCurrency, ReservableCurrency};
+use frame_support::traits::{
+	Currency, LockIdentifier, LockableCurrency, ReservableCurrency, WithdrawReasons,
+};
 
 use kumandra_primitives::GIB;
+
+const STAKINGID: LockIdentifier = *b"pocstake";
 
 pub type BalanceOf<T> =
 	<<T as Config>::StakingCurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -61,6 +66,19 @@ pub struct StakingInfo<AccountId, Balance> {
 	pub others: Vec<(AccountId, Balance, Balance)>,
 }
 
+/// Operate
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub enum Operate {
+	Add,
+	Sub,
+}
+
+impl Default for Operate {
+	fn default() -> Self {
+		Self::Add
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -85,6 +103,8 @@ pub mod pallet {
 		type StakingCurrency: Currency<Self::AccountId>
 			+ ReservableCurrency<Self::AccountId>
 			+ LockableCurrency<Self::AccountId>;
+
+		type RecommendLockExpire: Get<Self::BlockNumber>;
 
 		type WeightInfo: WeightInfo;
 	}
@@ -121,6 +141,18 @@ pub mod pallet {
 	#[pallet::getter(fn mining_miners)]
 	pub(super) type MiningMiners<T: Config> = StorageValue<_, BTreeSet<T::AccountId>, ValueQuery>;
 
+	/// exposed miners(hope someone to stake him).
+	#[pallet::storage]
+	#[pallet::getter(fn recommend_list)]
+	pub(super) type RecommendList<T: Config> =
+		StorageValue<_, Vec<(T::AccountId, BalanceOf<T>)>, ValueQuery>;
+
+	/// Locks
+	#[pallet::storage]
+	#[pallet::getter(fn locks)]
+	pub(super) type Locks<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, Vec<(T::BlockNumber, BalanceOf<T>)>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -145,8 +177,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		// register
 		#[pallet::call_index(0)]
-		#[pallet::weight(<T as Config>::WeightInfo::create())]
-		pub fn create(
+		#[pallet::weight(<T as Config>::WeightInfo::register())]
+		pub fn register(
 			origin: OriginFor<T>,
 			plot_size: GIB,
 			numeric_id: u128,
@@ -178,7 +210,7 @@ pub mod pallet {
 				dest = miner.clone();
 			}
 
-			let now = frame_system::Pallet::<T>::block_number();
+			let now = Self::now();
 
 			DiskOf::<T>::insert(
 				miner.clone(),
@@ -211,15 +243,97 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		// register
+		#[pallet::call_index(1)]
+		#[pallet::weight(<T as Config>::WeightInfo::request_down_from_list())]
+		pub fn request_down_from_list(origin: OriginFor<T>) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+			let mut list = RecommendList::<T>::get();
+			if let Some(pos) = list.iter().position(|h| h.0 == miner) {
+				let amount = list.remove(pos).1;
+
+				T::StakingCurrency::unreserve(&miner, amount);
+
+				let now = Self::now();
+
+				let expire = now + T::RecommendLockExpire::get();
+				Self::lock_add_amount(miner.clone(), amount, expire);
+
+			// <RecommendList<T>>::put(list);
+			} else {
+				// return Err(Error::<T>::NotInList)?;
+			}
+
+			Ok(())
+		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
+	pub fn now() -> T::BlockNumber {
+		frame_system::Pallet::<T>::block_number()
+	}
+
 	fn is_register(miner: T::AccountId) -> bool {
 		if <DiskOf<T>>::contains_key(&miner) && <StakingInfoOf<T>>::contains_key(&miner) {
 			true
 		} else {
 			false
 		}
+	}
+
+	fn lock_add_amount(who: T::AccountId, amount: BalanceOf<T>, expire: T::BlockNumber) {
+		Self::lock(who.clone(), Operate::Add, amount);
+		let locks_opt = <Locks<T>>::get(who.clone());
+		if locks_opt.is_some() {
+			let mut locks = locks_opt.unwrap();
+			locks.push((expire, amount));
+			<Locks<T>>::insert(who, locks);
+		} else {
+			let locks = vec![(expire, amount)];
+			Locks::<T>::insert(who, locks);
+		}
+	}
+
+	fn _lock_sub_amount(who: T::AccountId) {
+		let now = Self::now();
+		<Locks<T>>::mutate(who.clone(), |h_opt| {
+			if let Some(h) = h_opt {
+				h.retain(|i| {
+					if i.0 <= now {
+						Self::lock(who.clone(), Operate::Sub, i.1);
+						false
+					} else {
+						true
+					}
+				});
+			}
+		});
+	}
+
+	fn lock(who: T::AccountId, operate: Operate, amount: BalanceOf<T>) {
+		let locks_opt = Locks::<T>::get(who.clone());
+		let reasons = WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE;
+		match operate {
+			Operate::Sub => {
+				if locks_opt.is_none() {
+				}
+				//
+				else {
+					T::StakingCurrency::set_lock(STAKINGID, &who, amount, reasons);
+				}
+			}
+
+			Operate::Add => {
+				if locks_opt.is_none() {
+					T::StakingCurrency::set_lock(STAKINGID, &who, amount, reasons);
+				}
+				//
+				else {
+					T::StakingCurrency::extend_lock(STAKINGID, &who, amount, reasons);
+				}
+			}
+		};
 	}
 }
