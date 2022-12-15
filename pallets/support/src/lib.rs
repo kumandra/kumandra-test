@@ -15,5 +15,4 @@
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod primitives;
 pub mod traits;

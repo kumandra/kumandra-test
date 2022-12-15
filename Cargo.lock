@@ -1208,6 +1208,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kumandra-primitives"
+version = "1.0.0"
+dependencies = [
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1604,6 +1614,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "kumandra-primitives",
  "pallet-babe",
  "pallet-balances",
  "pallet-staking",

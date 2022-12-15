@@ -28,6 +28,7 @@ pallet-staking = { git = "https://github.com/paritytech/substrate.git", branch =
 pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 
 pallet-support = { path = "../support", default-features = false }
+kumandra-primitives = { path = "../../primitives", default-features = false }
 
 [features]
 default = ["std"]
@@ -48,4 +49,5 @@ std = [
 	"pallet-staking/std",
 	"pallet-timestamp/std",
 	"pallet-support/std",
+	"kumandra-primitives/std",
 ]

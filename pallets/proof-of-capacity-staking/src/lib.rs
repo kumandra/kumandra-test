@@ -1,14 +1,34 @@
+// Copyright 2022-2023 Smallworld Kumandra.
+// This file is part of Kumandra.
+
+// Kumandra is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Kumandra is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
+
+pub use pallet::*;
+
 pub mod weights;
 pub use weights::WeightInfo;
 
-use frame_support::pallet_prelude::DispatchResult;
-use frame_support::traits::{Currency, LockableCurrency, ReservableCurrency};
-pub use pallet::*;
-use pallet_support::primitives::GIB;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+
 use sp_runtime::{Percent, RuntimeDebug};
 use sp_std::collections::btree_set::BTreeSet;
+
+use frame_support::pallet_prelude::DispatchResult;
+use frame_support::traits::{Currency, LockableCurrency, ReservableCurrency};
+
+use kumandra_primitives::GIB;
 
 pub type BalanceOf<T> =
 	<<T as Config>::StakingCurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
