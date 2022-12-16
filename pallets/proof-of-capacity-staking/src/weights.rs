@@ -28,6 +28,14 @@ pub trait WeightInfo {
 	fn update_reward_dest() -> Weight;
 	fn update_numeric_id() -> Weight;
 	fn update_plot_size() -> Weight;
+	fn stop_mining() -> Weight;
+	fn staking() -> Weight;
+	fn restart_mining() -> Weight;
+	fn remove_staker() -> Weight;
+	fn update_staking() -> Weight;
+	fn unlock() -> Weight;
+	fn exit_staking() -> Weight;
+	fn update_proportion() -> Weight;
 }
 
 /// Weights for pallet_lottery using the Substrate node and recommended hardware.
@@ -67,5 +75,53 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		Weight::from_ref_time(53_225_000)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn stop_mining() -> Weight {
+		Weight::from_ref_time(53_225_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn restart_mining() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn remove_staker() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn update_staking() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn staking() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn unlock() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn exit_staking() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn update_proportion() -> Weight {
+		Weight::from_ref_time(53_225_000)
+		.saturating_add(T::DbWeight::get().reads(6))
+		.saturating_add(T::DbWeight::get().writes(4))
 	}
 }

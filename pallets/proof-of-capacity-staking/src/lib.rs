@@ -26,7 +26,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 use sp_runtime::{
-	traits::{CheckedAdd, CheckedDiv, CheckedSub, SaturatedConversion, Saturating},
+	traits::{CheckedAdd, CheckedSub, SaturatedConversion, Saturating},
 	Percent, RuntimeDebug,
 };
 use sp_std::{collections::btree_set::BTreeSet, result};
@@ -34,7 +34,8 @@ use sp_std::{collections::btree_set::BTreeSet, result};
 use frame_support::{
 	pallet_prelude::{DispatchError, DispatchResult},
 	traits::{
-		Currency, Get, LockIdentifier, LockableCurrency, ReservableCurrency, WithdrawReasons,
+		Currency, Get, LockIdentifier, LockableCurrency, OnUnbalanced, ReservableCurrency,
+		WithdrawReasons,
 	},
 };
 
@@ -44,6 +45,10 @@ const STAKINGID: LockIdentifier = *b"pocstake";
 
 pub type BalanceOf<T> =
 	<<T as Config>::StakingCurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+pub type NegativeImbalanceOf<T> = <<T as Config>::StakingCurrency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 #[codec(dumb_trait_bound)]
@@ -119,6 +124,16 @@ pub mod pallet {
 
 		type ChillDuration: Get<Self::BlockNumber>;
 
+		type StakingLockExpire: Get<Self::BlockNumber>;
+
+		type StakingSlash: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
+		type StakingDeposit: Get<BalanceOf<Self>>;
+
+		type PocStakingMinAmount: Get<BalanceOf<Self>>;
+
+		type StakerMaxNumber: Get<usize>;
+
 		type WeightInfo: WeightInfo;
 	}
 
@@ -187,21 +202,37 @@ pub mod pallet {
 	pub(super) type Locks<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, Vec<(T::BlockNumber, BalanceOf<T>)>>;
 
+	/// the miners of the user that help stake.
+	#[pallet::storage]
+	#[pallet::getter(fn miners_of)]
+	pub(super) type MinersOf<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, Vec<T::AccountId>, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		ExitStaking { staker: T::AccountId, miner: T::AccountId },
 		Register { miner: T::AccountId, disk: u64 },
 		RequestDownFromList { miner: T::AccountId },
+		RemoveStaker { miner: T::AccountId, staker: T::AccountId },
 		RequestUpToList { miner: T::AccountId, amount: BalanceOf<T> },
+		RestartMining { miner: T::AccountId },
+		Staking { who: T::AccountId, miner: T::AccountId, amount: BalanceOf<T> },
+		StopMining { miner: T::AccountId },
+		Unlock { staker: T::AccountId },
 		UpdateNumericId { miner: T::AccountId, pid: u128 },
 		UpdatePlotSize { miner: T::AccountId, disk: GIB },
+		UpdateProportion { miner: T::AccountId, proportion: Percent },
 		UpdateRewardDest { miner: T::AccountId, dest: T::AccountId },
+		UpdateStaking { staker: T::AccountId, amount: BalanceOf<T> },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		/// the miner already register.
 		AlreadyRegister,
+		/// the user already staking.
+		AlreadyStaking,
 		/// miner already stop mining.
 		AlreadyStopMining,
 		/// you should add the amount.
@@ -210,6 +241,8 @@ pub mod pallet {
 		AmountNotEnough,
 		/// in chill time.
 		ChillTime,
+		/// you did not stop mining.
+		MiningNotStop,
 		/// not in chill time.
 		NotChillTime,
 		/// the numeric id is in using.
@@ -218,10 +251,16 @@ pub mod pallet {
 		NotInList,
 		/// the miner is not register.
 		NotRegister,
-		/// plot size should not 0.
-		PlotSizeIsZero,
+		/// not the staker of this miner.
+		NotYourStaker,
 		/// over flow.
 		Overflow,
+		/// plot size should not 0.
+		PlotSizeIsZero,
+		/// you staking amount too low
+		StakingAmountooLow,
+		/// the satkers number of this miner is up the max value.
+		StakerNumberToMax,
 	}
 
 	#[pallet::hooks]
@@ -445,6 +484,182 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		/// the miner stop the machine.
+		#[pallet::call_index(6)]
+		#[pallet::weight(<T as Config>::WeightInfo::stop_mining())]
+		pub fn stop_mining(origin: OriginFor<T>) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			Self::is_can_mining(miner.clone())?;
+
+			<DiskOf<T>>::mutate(miner.clone(), |h| {
+				if let Some(x) = h {
+					x.is_stop = true;
+					DeclaredCapacity::<T>::mutate(|h| *h -= x.plot_size);
+					MiningMiners::<T>::mutate(|h| h.remove(&miner));
+				}
+			});
+
+			Self::deposit_event(Event::<T>::StopMining { miner });
+
+			Ok(())
+		}
+
+		/// the miner restart mining.
+		#[pallet::call_index(7)]
+		#[pallet::weight(<T as Config>::WeightInfo::restart_mining())]
+		pub fn restart_mining(origin: OriginFor<T>) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
+
+			ensure!(
+				DiskOf::<T>::get(miner.clone()).unwrap().is_stop == true,
+				Error::<T>::MiningNotStop
+			);
+			DiskOf::<T>::mutate(miner.clone(), |h| {
+				if let Some(x) = h {
+					let now = Self::now();
+					x.update_time = now;
+					x.is_stop = false;
+					DeclaredCapacity::<T>::mutate(|h| *h += x.plot_size);
+					MiningMiners::<T>::mutate(|h| h.insert(miner.clone()));
+				}
+			});
+			T::PocHandler::remove_history(miner.clone());
+
+			Self::deposit_event(Event::<T>::RestartMining { miner });
+
+			Ok(())
+		}
+
+		/// the delete him staker.
+		#[pallet::call_index(8)]
+		#[pallet::weight(<T as Config>::WeightInfo::remove_staker())]
+		pub fn remove_staker(origin: OriginFor<T>, staker: T::AccountId) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			Self::update_staking_info(miner.clone(), staker.clone(), Operate::Sub, None, true)?;
+
+			Self::staker_remove_miner(staker.clone(), miner.clone());
+
+			Self::deposit_event(Event::<T>::RemoveStaker { miner, staker });
+
+			Ok(())
+		}
+
+		/// the user stake for miners.
+		#[pallet::call_index(9)]
+		#[pallet::weight(<T as Config>::WeightInfo::staking())]
+		pub fn staking(
+			origin: OriginFor<T>,
+			miner: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+
+			Self::is_can_mining(miner.clone())?;
+
+			ensure!(!IsChillTime::<T>::get(), Error::<T>::ChillTime);
+
+			ensure!(amount >= T::PocStakingMinAmount::get(), Error::<T>::StakingAmountooLow);
+
+			if Self::staker_pos(miner.clone(), who.clone()).is_some() {
+				return Err(Error::<T>::AlreadyStaking)?;
+			}
+
+			let bond = amount.checked_add(&T::StakingDeposit::get()).ok_or(Error::<T>::Overflow)?;
+
+			let staker_info = (who.clone(), amount.clone(), T::StakingDeposit::get());
+
+			let mut staking_info = StakingInfoOf::<T>::get(&miner).unwrap();
+
+			ensure!(
+				staking_info.others.len() < T::StakerMaxNumber::get(),
+				Error::<T>::StakerNumberToMax
+			);
+
+			let total_amount = staking_info.clone().total_staking;
+
+			let now_amount = total_amount.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+
+			T::StakingCurrency::reserve(&who, bond)?;
+
+			staking_info.total_staking = now_amount;
+
+			staking_info.others.push(staker_info);
+
+			StakingInfoOf::<T>::insert(miner.clone(), staking_info);
+
+			MinersOf::<T>::mutate(who.clone(), |h| h.push(miner.clone()));
+
+			Self::deposit_event(Event::<T>::Staking { who, miner, amount });
+
+			Ok(())
+		}
+
+		/// users update their staking amount.
+		#[pallet::call_index(10)]
+		#[pallet::weight(<T as Config>::WeightInfo::update_staking())]
+		pub fn update_staking(
+			origin: OriginFor<T>,
+			miner: T::AccountId,
+			operate: Operate,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let staker = ensure_signed(origin)?;
+
+			Self::update_staking_info(miner, staker.clone(), operate, Some(amount), false)?;
+
+			Self::deposit_event(Event::<T>::UpdateStaking { staker, amount });
+
+			Ok(())
+		}
+
+		/// unlock
+		#[pallet::call_index(11)]
+		#[pallet::weight(<T as Config>::WeightInfo::update_staking())]
+		pub fn unlock(origin: OriginFor<T>) -> DispatchResult {
+			let staker = ensure_signed(origin)?;
+			Self::lock_sub_amount(staker.clone());
+			Self::deposit_event(Event::<T>::Unlock { staker });
+
+			Ok(())
+		}
+
+		/// the user exit staking.
+		#[pallet::call_index(12)]
+		#[pallet::weight(<T as Config>::WeightInfo::exit_staking())]
+		pub fn exit_staking(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
+			let staker = ensure_signed(origin)?;
+			Self::update_staking_info(miner.clone(), staker.clone(), Operate::Sub, None, false)?;
+			Self::staker_remove_miner(staker.clone(), miner.clone());
+			Self::deposit_event(Event::<T>::ExitStaking { staker, miner });
+
+			Ok(())
+		}
+
+		/// miners update their mining reward proportion.
+		#[pallet::call_index(13)]
+		#[pallet::weight(<T as Config>::WeightInfo::update_proportion())]
+		pub fn update_proportion(origin: OriginFor<T>, proportion: Percent) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			ensure!(IsChillTime::<T>::get(), Error::<T>::NotChillTime);
+
+			Self::is_can_mining(miner.clone())?;
+
+			let mut staking_info = <StakingInfoOf<T>>::get(miner.clone()).unwrap();
+
+			staking_info.miner_proportion = proportion.clone();
+
+			<StakingInfoOf<T>>::insert(miner.clone(), staking_info);
+
+			Self::deposit_event(Event::<T>::UpdateProportion { miner, proportion });
+
+			Ok(())
+		}
 	}
 }
 
@@ -461,7 +676,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub fn is_can_mining(miner: T::AccountId) -> result::Result<bool, DispatchError> {
+	fn is_can_mining(miner: T::AccountId) -> result::Result<bool, DispatchError> {
 		ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
 
 		ensure!(!DiskOf::<T>::get(&miner).unwrap().is_stop, Error::<T>::AlreadyStopMining);
@@ -469,14 +684,27 @@ impl<T: Config> Pallet<T> {
 		Ok(true)
 	}
 
+	fn staker_pos(miner: T::AccountId, staker: T::AccountId) -> Option<usize> {
+		let staking_info = StakingInfoOf::<T>::get(&miner).unwrap();
+		let others = staking_info.others;
+		let pos = others.iter().position(|h| h.0 == staker);
+		pos
+	}
+
+	fn staker_remove_miner(staker: T::AccountId, miner: T::AccountId) {
+		MinersOf::<T>::mutate(staker.clone(), |miners| {
+			miners.retain(|h| h != &miner);
+		});
+	}
+
 	fn update_chill() -> DispatchResult {
 		let now = Self::now();
 
 		let era_start_time = <pallet_staking::Pallet<T>>::current_era();
 
-		let chill_duration = T::ChillDuration::get(); // 一个session区块数
+		let chill_duration = T::ChillDuration::get(); // 一个number of blocks in session
 
-		let era = chill_duration * era_start_time.unwrap().saturated_into::<T::BlockNumber>(); // 一个era区块数
+		let era = chill_duration * era_start_time.unwrap().saturated_into::<T::BlockNumber>(); // 一个number of blocks in era
 
 		// Get the blocks consumed by the era
 		let num = now % era;
@@ -493,6 +721,82 @@ impl<T: Config> Pallet<T> {
 			<ChillTime<T>>::put((start, end));
 
 			<IsChillTime<T>>::put(false);
+		}
+
+		Ok(())
+	}
+
+	fn update_staking_info(
+		miner: T::AccountId,
+		staker: T::AccountId,
+		operate: Operate,
+		amount_opt: Option<BalanceOf<T>>,
+		is_slash: bool,
+	) -> DispatchResult {
+		ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
+
+		let amount: BalanceOf<T>;
+
+		if let Some(pos) = Self::staker_pos(miner.clone(), staker.clone()) {
+			let mut staking_info = StakingInfoOf::<T>::get(&miner).unwrap();
+
+			let mut staker_info = staking_info.others.remove(pos);
+
+			if amount_opt.is_none() {
+				amount = staker_info.1.clone()
+			} else {
+				amount = amount_opt.unwrap()
+			}
+
+			match operate {
+				Operate::Add => {
+					let bond = staker_info.1.clone();
+					let now_bond = bond.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+					let total_staking = staking_info.total_staking;
+					let now_staking =
+						total_staking.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+					T::StakingCurrency::reserve(&staker, amount)?;
+
+					staker_info.1 = now_bond;
+
+					staking_info.total_staking = now_staking;
+				}
+
+				_ => {
+					let bond = staker_info.1.clone();
+					let now_bond = bond.checked_sub(&amount).ok_or(Error::<T>::Overflow)?;
+					let total_staking = staking_info.total_staking;
+					let now_staking =
+						total_staking.checked_sub(&amount).ok_or(Error::<T>::Overflow)?;
+
+					T::StakingCurrency::unreserve(&staker, amount);
+
+					let now = Self::now();
+					let expire = now.saturating_add(T::StakingLockExpire::get());
+					Self::lock_add_amount(staker.clone(), amount, expire);
+
+					staker_info.1 = now_bond;
+
+					staking_info.total_staking = now_staking;
+				}
+			}
+
+			if staker_info.1 == <BalanceOf<T>>::from(0u32) {
+				if is_slash {
+					T::StakingSlash::on_unbalanced(
+						T::StakingCurrency::slash_reserved(&staker, staker_info.2.clone()).0,
+					);
+				} else {
+					T::StakingCurrency::unreserve(&staker, staker_info.2.clone());
+				}
+				Self::staker_remove_miner(staker.clone(), miner.clone());
+			} else {
+				staking_info.others.push(staker_info);
+			}
+
+			<StakingInfoOf<T>>::insert(&miner, staking_info);
+		} else {
+			return Err(Error::<T>::NotYourStaker)?;
 		}
 
 		Ok(())
@@ -556,7 +860,7 @@ impl<T: Config> Pallet<T> {
 			for i in abandon {
 				T::StakingCurrency::unreserve(&i.0, i.1);
 				let now = Self::now();
-				let expire = now + T::RecommendLockExpire::get();
+				let expire = now.saturating_add(T::RecommendLockExpire::get());
 
 				Self::lock_add_amount(i.0, i.1, expire);
 			}
@@ -573,7 +877,7 @@ impl<T: Config> Pallet<T> {
 
 	fn lock_add_amount(who: T::AccountId, amount: BalanceOf<T>, expire: T::BlockNumber) {
 		Self::lock(who.clone(), Operate::Add, amount);
-		let locks_opt = <Locks<T>>::get(who.clone());
+		let locks_opt = Locks::<T>::get(who.clone());
 		if locks_opt.is_some() {
 			let mut locks = locks_opt.unwrap();
 			locks.push((expire, amount));
@@ -584,7 +888,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn _lock_sub_amount(who: T::AccountId) {
+	fn lock_sub_amount(who: T::AccountId) {
 		let now = Self::now();
 		<Locks<T>>::mutate(who.clone(), |h_opt| {
 			if let Some(h) = h_opt {
