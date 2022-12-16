@@ -19,6 +19,7 @@ pub use pallet::*;
 
 pub mod traits;
 pub mod weights;
+pub use traits::PocHandler;
 pub use weights::WeightInfo;
 
 use parity_scale_codec::{Decode, Encode};
@@ -30,7 +31,7 @@ use sp_std::{collections::btree_set::BTreeSet, result};
 use frame_support::{
 	pallet_prelude::{DispatchError, DispatchResult},
 	traits::{
-		Currency, LockIdentifier, LockableCurrency, ReservableCurrency, WithdrawReasons, Get,
+		Currency, Get, LockIdentifier, LockableCurrency, ReservableCurrency, WithdrawReasons,
 	},
 };
 
@@ -111,6 +112,8 @@ pub mod pallet {
 
 		type RecommendMaxNumber: Get<usize>;
 
+		type PocHandler: PocHandler<Self::AccountId>;
+
 		type WeightInfo: WeightInfo;
 	}
 
@@ -152,6 +155,16 @@ pub mod pallet {
 	pub(super) type RecommendList<T: Config> =
 		StorageValue<_, Vec<(T::AccountId, BalanceOf<T>)>, ValueQuery>;
 
+	/// is in the chill time(only miners can update their info).
+	#[pallet::storage]
+	#[pallet::getter(fn is_chill_time)]
+	pub(super) type IsChillTime<T> = StorageValue<_, bool, ValueQuery, DefaultChillTime>;
+
+	#[pallet::type_value]
+	pub fn DefaultChillTime() -> bool {
+		true.into()
+	}
+
 	/// Locks
 	#[pallet::storage]
 	#[pallet::getter(fn locks)]
@@ -164,6 +177,9 @@ pub mod pallet {
 		Register { miner: T::AccountId, disk: u64 },
 		RequestDownFromList { miner: T::AccountId },
 		RequestUpToList { miner: T::AccountId, amount: BalanceOf<T> },
+		UpdateNumericId { miner: T::AccountId, pid: u128 },
+		UpdatePlotSize { miner: T::AccountId, disk: GIB },
+		UpdateRewardDest { miner: T::AccountId, dest: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -176,6 +192,10 @@ pub mod pallet {
 		AmountTooLow,
 		/// amount not enough.
 		AmountNotEnough,
+		/// in chill time.
+		ChillTime,
+		/// not in chill time.
+		NotChillTime,
 		/// the numeric id is in using.
 		NumericIdInUsing,
 		/// not in the recommend list.
@@ -216,7 +236,7 @@ pub mod pallet {
 
 			ensure!(!<AccountIdOfPid<T>>::contains_key(pid), Error::<T>::NumericIdInUsing);
 
-			<DeclaredCapacity<T>>::mutate(|h| *h += disk);
+			DeclaredCapacity::<T>::mutate(|h| *h += disk);
 
 			let dest: T::AccountId;
 			if reward_dest.is_some() {
@@ -269,11 +289,10 @@ pub mod pallet {
 
 			Self::sort_account_by_amount(miner.clone(), amount)?;
 
-			Self::deposit_event(Event::<T>::RequestUpToList{ miner, amount });
+			Self::deposit_event(Event::<T>::RequestUpToList { miner, amount });
 
 			Ok(())
 		}
-
 
 		/// request to down from the recommended list
 		#[pallet::call_index(2)]
@@ -297,6 +316,97 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::RequestDownFromList { miner });
+
+			Ok(())
+		}
+
+		/// the miner modify income address.
+		#[pallet::call_index(3)]
+		#[pallet::weight(<T as Config>::WeightInfo::update_reward_dest())]
+		pub fn update_reward_dest(origin: OriginFor<T>, dest: T::AccountId) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
+
+			DiskOf::<T>::mutate(miner.clone(), |h| {
+				if let Some(i) = h {
+					i.reward_dest = dest.clone();
+				}
+			});
+
+			Self::deposit_event(Event::<T>::UpdateRewardDest { miner, dest });
+
+			Ok(())
+		}
+
+		/// the miner modify plot id.
+		#[pallet::call_index(4)]
+		#[pallet::weight(<T as Config>::WeightInfo::update_numeric_id())]
+		pub fn update_numeric_id(origin: OriginFor<T>, numeric_id: u128) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			let pid = numeric_id;
+
+			ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
+
+			ensure!(
+				!(AccountIdOfPid::<T>::contains_key(pid)
+					&& AccountIdOfPid::<T>::get(pid).unwrap() != miner.clone()),
+				Error::<T>::NumericIdInUsing
+			);
+
+			let old_pid = DiskOf::<T>::get(miner.clone()).unwrap().numeric_id;
+
+			AccountIdOfPid::<T>::remove(old_pid);
+
+			DiskOf::<T>::mutate(miner.clone(), |h| {
+				if let Some(i) = h {
+					i.numeric_id = pid;
+				}
+			});
+
+			<AccountIdOfPid<T>>::insert(pid, miner.clone());
+
+			Self::deposit_event(Event::<T>::UpdateNumericId { miner, pid });
+
+			Ok(())
+		}
+
+		/// the miner modify the plot size.
+		#[pallet::call_index(5)]
+		#[pallet::weight(<T as Config>::WeightInfo::update_plot_size())]
+		pub fn update_plot_size(origin: OriginFor<T>, plot_size: GIB) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			let kib = plot_size;
+
+			let disk = kib.checked_mul((1024 * 1024 * 1024) as GIB).ok_or(Error::<T>::Overflow)?;
+
+			ensure!(disk != 0 as GIB, Error::<T>::PlotSizeIsZero);
+
+			ensure!(Self::is_chill_time(), Error::<T>::ChillTime);
+
+			T::PocHandler::remove_history(miner.clone());
+
+			let now = Self::now();
+
+			ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
+
+			<DiskOf<T>>::mutate(miner.clone(), |h| {
+				if let Some(i) = h {
+					if i.is_stop == false {
+						DeclaredCapacity::<T>::mutate(|h| *h -= i.plot_size);
+						i.plot_size = disk;
+						DeclaredCapacity::<T>::mutate(|h| *h += i.plot_size);
+						i.update_time = now;
+					} else {
+						i.plot_size = disk;
+						i.update_time = now;
+					}
+				}
+			});
+
+			Self::deposit_event(Event::<T>::UpdatePlotSize { miner, disk });
 
 			Ok(())
 		}
