@@ -24,6 +24,7 @@ use sp_std::marker::PhantomData;
 pub trait WeightInfo {
 	fn register() -> Weight;
 	fn request_down_from_list() -> Weight;
+	fn request_up_to_list() -> Weight;
 }
 
 /// Weights for pallet_lottery using the Substrate node and recommended hardware.
@@ -36,6 +37,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	}
 
 	fn request_down_from_list() -> Weight {
+		Weight::from_ref_time(53_225_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn request_up_to_list() -> Weight {
 		Weight::from_ref_time(53_225_000)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))

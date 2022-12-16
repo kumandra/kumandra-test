@@ -14,21 +14,24 @@
 // You should have received a copy of the GNU General Public License
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
 
+use frame_support::ensure;
 pub use pallet::*;
 
-pub mod weights;
 pub mod traits;
+pub mod weights;
 pub use weights::WeightInfo;
 
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 use sp_runtime::{Percent, RuntimeDebug};
-use sp_std::collections::btree_set::BTreeSet;
+use sp_std::{collections::btree_set::BTreeSet, result};
 
-use frame_support::pallet_prelude::DispatchResult;
-use frame_support::traits::{
-	Currency, LockIdentifier, LockableCurrency, ReservableCurrency, WithdrawReasons,
+use frame_support::{
+	pallet_prelude::{DispatchError, DispatchResult},
+	traits::{
+		Currency, LockIdentifier, LockableCurrency, ReservableCurrency, WithdrawReasons, Get,
+	},
 };
 
 use kumandra_primitives::GIB;
@@ -106,6 +109,8 @@ pub mod pallet {
 
 		type RecommendLockExpire: Get<Self::BlockNumber>;
 
+		type RecommendMaxNumber: Get<usize>;
+
 		type WeightInfo: WeightInfo;
 	}
 
@@ -157,6 +162,8 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		Register { miner: T::AccountId, disk: u64 },
+		RequestDownFromList { miner: T::AccountId },
+		RequestUpToList { miner: T::AccountId, amount: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -165,8 +172,16 @@ pub mod pallet {
 		AlreadyRegister,
 		/// miner already stop mining.
 		AlreadyStopMining,
+		/// you should add the amount.
+		AmountTooLow,
+		/// amount not enough.
+		AmountNotEnough,
 		/// the numeric id is in using.
 		NumericIdInUsing,
+		/// not in the recommend list.
+		NotInList,
+		/// the miner is not register.
+		NotRegister,
 		/// plot size should not 0.
 		PlotSizeIsZero,
 		/// over flow.
@@ -244,8 +259,24 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// register
+		/// request to expose in recommend list.
 		#[pallet::call_index(1)]
+		#[pallet::weight(<T as Config>::WeightInfo::request_up_to_list())]
+		pub fn request_up_to_list(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			ensure!(Self::is_can_mining(miner.clone())?, Error::<T>::NotRegister);
+
+			Self::sort_account_by_amount(miner.clone(), amount)?;
+
+			Self::deposit_event(Event::<T>::RequestUpToList{ miner, amount });
+
+			Ok(())
+		}
+
+
+		/// request to down from the recommended list
+		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::request_down_from_list())]
 		pub fn request_down_from_list(origin: OriginFor<T>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
@@ -260,10 +291,12 @@ pub mod pallet {
 				let expire = now + T::RecommendLockExpire::get();
 				Self::lock_add_amount(miner.clone(), amount, expire);
 
-			// <RecommendList<T>>::put(list);
+				RecommendList::<T>::put(list);
 			} else {
-				// return Err(Error::<T>::NotInList)?;
+				return Err(Error::<T>::NotInList)?;
 			}
+
+			Self::deposit_event(Event::<T>::RequestDownFromList { miner });
 
 			Ok(())
 		}
@@ -281,6 +314,87 @@ impl<T: Config> Pallet<T> {
 		} else {
 			false
 		}
+	}
+
+	pub fn is_can_mining(miner: T::AccountId) -> result::Result<bool, DispatchError> {
+		ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
+
+		ensure!(!DiskOf::<T>::get(&miner).unwrap().is_stop, Error::<T>::AlreadyStopMining);
+
+		Ok(true)
+	}
+
+	fn sort_account_by_amount(
+		miner: T::AccountId,
+		mut amount: BalanceOf<T>,
+	) -> result::Result<(), DispatchError> {
+		let mut old_list = RecommendList::<T>::get();
+
+		let mut miner_old_info: Option<(T::AccountId, BalanceOf<T>)> = None;
+
+		if let Some(pos) = old_list.iter().position(|h| h.0 == miner.clone()) {
+			miner_old_info = Some(old_list.remove(pos));
+		}
+
+		if miner_old_info.is_some() {
+			let old_amount = miner_old_info.clone().unwrap().1;
+
+			ensure!(T::StakingCurrency::can_reserve(&miner, amount), Error::<T>::AmountNotEnough);
+
+			T::StakingCurrency::unreserve(&miner, old_amount);
+
+			amount = amount + old_amount;
+		}
+
+		if old_list.len() == 0 {
+			Self::sort_after(miner, amount, 0, old_list)?;
+		} else {
+			let mut index = 0;
+			for i in old_list.iter() {
+				if i.1 >= amount {
+					index += 1;
+				} else {
+					break;
+				}
+			}
+
+			Self::sort_after(miner, amount, index, old_list)?;
+		}
+
+		Ok(())
+	}
+
+	fn sort_after(
+		miner: T::AccountId,
+		amount: BalanceOf<T>,
+		index: usize,
+		mut old_list: Vec<(T::AccountId, BalanceOf<T>)>,
+	) -> result::Result<(), DispatchError> {
+		if index < T::RecommendMaxNumber::get() {
+			T::StakingCurrency::reserve(&miner, amount)?;
+
+			old_list.insert(index, (miner, amount));
+		}
+
+		if old_list.len() >= T::RecommendMaxNumber::get() {
+			let abandon = old_list.split_off(T::RecommendMaxNumber::get());
+
+			for i in abandon {
+				T::StakingCurrency::unreserve(&i.0, i.1);
+				let now = Self::now();
+				let expire = now + T::RecommendLockExpire::get();
+
+				Self::lock_add_amount(i.0, i.1, expire);
+			}
+		}
+
+		<RecommendList<T>>::put(old_list);
+
+		if index >= T::RecommendMaxNumber::get() {
+			return Err(Error::<T>::AmountTooLow)?;
+		}
+
+		Ok(())
 	}
 
 	fn lock_add_amount(who: T::AccountId, amount: BalanceOf<T>, expire: T::BlockNumber) {
@@ -312,15 +426,14 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
+	/// todo: add and sub balance more property
 	fn lock(who: T::AccountId, operate: Operate, amount: BalanceOf<T>) {
 		let locks_opt = Locks::<T>::get(who.clone());
 		let reasons = WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE;
 		match operate {
 			Operate::Sub => {
 				if locks_opt.is_none() {
-				}
-				//
-				else {
+				} else {
 					T::StakingCurrency::set_lock(STAKINGID, &who, amount, reasons);
 				}
 			}
