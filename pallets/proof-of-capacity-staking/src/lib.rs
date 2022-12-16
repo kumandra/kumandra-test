@@ -25,7 +25,10 @@ pub use weights::WeightInfo;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-use sp_runtime::{Percent, RuntimeDebug};
+use sp_runtime::{
+	traits::{CheckedAdd, CheckedDiv, CheckedSub, SaturatedConversion, Saturating},
+	Percent, RuntimeDebug,
+};
 use sp_std::{collections::btree_set::BTreeSet, result};
 
 use frame_support::{
@@ -114,6 +117,8 @@ pub mod pallet {
 
 		type PocHandler: PocHandler<Self::AccountId>;
 
+		type ChillDuration: Get<Self::BlockNumber>;
+
 		type WeightInfo: WeightInfo;
 	}
 
@@ -165,6 +170,17 @@ pub mod pallet {
 		true.into()
 	}
 
+	/// is in the chill time(only miners can update their info).
+	#[pallet::storage]
+	#[pallet::getter(fn chill_time)]
+	pub(super) type ChillTime<T: Config> =
+		StorageValue<_, (T::BlockNumber, T::BlockNumber), ValueQuery>;
+
+	/// the total number of mining miners.
+	#[pallet::storage]
+	#[pallet::getter(fn mining_num)]
+	pub(super) type MiningNum<T> = StorageValue<_, u64, ValueQuery>;
+
 	/// Locks
 	#[pallet::storage]
 	#[pallet::getter(fn locks)]
@@ -206,6 +222,25 @@ pub mod pallet {
 		PlotSizeIsZero,
 		/// over flow.
 		Overflow,
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// dummy `on_initialize` to return the weight used in `on_finalize`.
+		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			let _ = Self::update_chill();
+			// weight of `on_finalize`
+			Weight::from_ref_time(0 as u64)
+		}
+
+		/// # <weight>
+		/// - `O(1)`
+		/// - 1 storage deletion (codec `O(1)`).
+		/// # </weight>
+		fn on_finalize(_n: BlockNumberFor<T>) {
+			let num = <MiningMiners<T>>::get().len() as u64;
+			MiningNum::<T>::put(num)
+		}
 	}
 
 	#[pallet::call]
@@ -307,7 +342,7 @@ pub mod pallet {
 
 				let now = Self::now();
 
-				let expire = now + T::RecommendLockExpire::get();
+				let expire = now.saturating_add(T::RecommendLockExpire::get());
 				Self::lock_add_amount(miner.clone(), amount, expire);
 
 				RecommendList::<T>::put(list);
@@ -432,6 +467,35 @@ impl<T: Config> Pallet<T> {
 		ensure!(!DiskOf::<T>::get(&miner).unwrap().is_stop, Error::<T>::AlreadyStopMining);
 
 		Ok(true)
+	}
+
+	fn update_chill() -> DispatchResult {
+		let now = Self::now();
+
+		let era_start_time = <pallet_staking::Pallet<T>>::current_era();
+
+		let chill_duration = T::ChillDuration::get(); // 一个session区块数
+
+		let era = chill_duration * era_start_time.unwrap().saturated_into::<T::BlockNumber>(); // 一个era区块数
+
+		// Get the blocks consumed by the era
+		let num = now % era;
+		let num1 = now / era;
+
+		if num < chill_duration {
+			let start = num1 * era;
+			let end = num1 * era + chill_duration;
+			<ChillTime<T>>::put((start, end));
+			<IsChillTime<T>>::put(true);
+		} else {
+			let start = (num1 + 1u32.saturated_into::<T::BlockNumber>()) * era;
+			let end = (num1 + 1u32.saturated_into::<T::BlockNumber>()) * era + chill_duration;
+			<ChillTime<T>>::put((start, end));
+
+			<IsChillTime<T>>::put(false);
+		}
+
+		Ok(())
 	}
 
 	fn sort_account_by_amount(
