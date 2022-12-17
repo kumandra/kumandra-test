@@ -1,0 +1,18 @@
+
+[package]
+name = "conjugate-poc"
+version = "1.0.0"
+authors = ["Kumandra"]
+edition = "2018"
+
+[dependencies]
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+
+[dev-dependencies]
+clear_on_drop = { version = "0.2.3", features = ["no_cc"] }
+
+[features]
+default = ["std"]
+std = [
+    "sp-std/std",
+]

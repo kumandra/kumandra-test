@@ -299,6 +299,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clear_on_drop"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38508a63f4979f0048febc9966fadbd48e5dab31fd0ec6a3f151bbf4a74f7423"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -306,6 +315,14 @@ checksum = "3538270d33cc669650c4b093848450d380def10c331d38c768e34cac80576e6e"
 dependencies = [
  "termcolor",
  "unicode-width",
+]
+
+[[package]]
+name = "conjugate-poc"
+version = "1.0.0"
+dependencies = [
+ "clear_on_drop",
+ "sp-std",
 ]
 
 [[package]]
@@ -1609,6 +1626,29 @@ dependencies = [
 
 [[package]]
 name = "pallet-poc"
+version = "1.0.0"
+dependencies = [
+ "conjugate-poc",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "kumandra-primitives",
+ "pallet-babe",
+ "pallet-balances",
+ "pallet-poc-staking",
+ "pallet-staking",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "serde_derive",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-poc-staking"
 version = "1.0.0"
 dependencies = [
  "frame-benchmarking",
