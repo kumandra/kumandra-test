@@ -1,0 +1,56 @@
+[package]
+name = "pallet-poc"
+version = "1.0.0"
+authors = ["Selendra <info@selendra.org>"]
+description = "Kumandra proof of capacity"
+edition = "2021"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+serde = { version = "1.0.137", default-features = false }
+serde_derive = { version = "1.0.117", optional = true }
+
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+
+frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false, optional = true }
+frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+
+pallet-babe = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+pallet-staking = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+pallet-balances = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+
+pallet-poc-staking = { path = "../proof-of-capacity-staking", default-features = false }
+kumandra-primitives = { path = "../../primitives", default-features = false }
+conjugate-poc = { path = "../../conjugate-poc", default-features = false }
+
+[features]
+default = ["std"]
+no_std = []
+std = [
+	"parity-scale-codec/std",
+	"scale-info/std",
+	"serde_derive",
+	"serde/std",
+	"sp-core/std",
+	"sp-std/std",
+	"sp-runtime/std",
+
+	"frame-support/std",
+	"frame-system/std",
+	"pallet-balances/std",
+	"pallet-babe/std",
+	"pallet-staking/std",
+	"pallet-timestamp/std",
+	"kumandra-primitives/std",
+	"pallet-poc-staking/std",
+	"kumandra-primitives/std",
+	"conjugate-poc/std"
+]

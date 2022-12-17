@@ -31,7 +31,8 @@ use sp_runtime::{
 use sp_std::{collections::btree_set::BTreeSet, result};
 
 use frame_support::{
-	pallet_prelude::{DispatchError, DispatchResult}, ensure,
+	ensure,
+	pallet_prelude::{DispatchError, DispatchResult},
 	traits::{
 		Currency, Get, LockIdentifier, LockableCurrency, OnUnbalanced, ReservableCurrency,
 		WithdrawReasons,
