@@ -1,5 +1,5 @@
 [package]
-name = "pallet-poc"
+name = "pallet-poc-staking"
 version = "1.0.0"
 authors = ["Selendra <info@selendra.org>"]
 description = "Kumandra proof of capacity"

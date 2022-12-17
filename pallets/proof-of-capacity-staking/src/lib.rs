@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::ensure;
 pub use pallet::*;
 
 pub mod traits;
@@ -32,7 +31,7 @@ use sp_runtime::{
 use sp_std::{collections::btree_set::BTreeSet, result};
 
 use frame_support::{
-	pallet_prelude::{DispatchError, DispatchResult},
+	pallet_prelude::{DispatchError, DispatchResult}, ensure,
 	traits::{
 		Currency, Get, LockIdentifier, LockableCurrency, OnUnbalanced, ReservableCurrency,
 		WithdrawReasons,
@@ -51,7 +50,6 @@ pub type NegativeImbalanceOf<T> = <<T as Config>::StakingCurrency as Currency<
 >>::NegativeImbalance;
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
-#[codec(dumb_trait_bound)]
 pub struct MachineInfo<AccountId, BlockNumber> {
 	/// disk space
 	pub plot_size: GIB,
