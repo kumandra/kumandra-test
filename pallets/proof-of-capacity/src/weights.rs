@@ -23,6 +23,8 @@ use sp_std::marker::PhantomData;
 
 pub trait WeightInfo {
 	fn set_difficulty() -> Weight;
+	fn set_adjust_difficulty_duration() -> Weight;
+	fn set_capacity_of_per_difficulty() -> Weight;
 
 }
 
@@ -30,7 +32,19 @@ pub trait WeightInfo {
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	fn set_difficulty() -> Weight {
-		Weight::from_ref_time(53_225_000)
+		Weight::from_ref_time(10_000_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn set_adjust_difficulty_duration() -> Weight {
+		Weight::from_ref_time(10_000_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn set_capacity_of_per_difficulty() -> Weight {
+		Weight::from_ref_time(10_000_000)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}

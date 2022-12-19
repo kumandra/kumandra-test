@@ -292,7 +292,7 @@ pub mod pallet {
 
 		/// how often to adjust the difficulty.
 		#[pallet::call_index(1)]
-		#[pallet::weight(<T as Config>::WeightInfo::set_difficulty())]
+		#[pallet::weight(<T as Config>::WeightInfo::set_adjust_difficulty_duration())]
 		pub fn set_adjust_difficulty_duration(
 			origin: OriginFor<T>,
 			block_num: u64,
@@ -307,7 +307,7 @@ pub mod pallet {
 
 		/// how much capacity that one difficulty.
 		#[pallet::call_index(2)]
-		#[pallet::weight(<T as Config>::WeightInfo::set_difficulty())]
+		#[pallet::weight(<T as Config>::WeightInfo::set_capacity_of_per_difficulty())]
 		pub fn set_capacity_of_per_difficulty(
 			origin: OriginFor<T>,
 			capacity: u64,
