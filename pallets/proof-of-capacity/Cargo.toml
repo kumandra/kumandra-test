@@ -9,10 +9,12 @@ edition = "2021"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+log = "0.4.17"
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 serde = { version = "1.0.137", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
+num-traits = { version = "0.2.15", default-features = false }
 
 sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
@@ -26,6 +28,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate.git", branch = "p
 pallet-staking = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 pallet-balances = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
+pallet-treasury = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 
 pallet-poc-staking = { path = "../proof-of-capacity-staking", default-features = false }
 kumandra-primitives = { path = "../../primitives", default-features = false }
@@ -49,8 +52,9 @@ std = [
 	"pallet-babe/std",
 	"pallet-staking/std",
 	"pallet-timestamp/std",
+	"pallet-treasury/std",
 	"kumandra-primitives/std",
 	"pallet-poc-staking/std",
 	"kumandra-primitives/std",
-	"conjugate-poc/std"
+	"conjugate-poc/std",
 ]

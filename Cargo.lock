@@ -1633,11 +1633,14 @@ dependencies = [
  "frame-support",
  "frame-system",
  "kumandra-primitives",
+ "log",
+ "num-traits",
  "pallet-babe",
  "pallet-balances",
  "pallet-poc-staking",
  "pallet-staking",
  "pallet-timestamp",
+ "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -1727,6 +1730,23 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-timestamp",
+]
+
+[[package]]
+name = "pallet-treasury"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34#1cc97dd30537997ff4c9827beb2ef0cac9c49063"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
