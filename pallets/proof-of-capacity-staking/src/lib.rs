@@ -668,7 +668,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn is_register(miner: T::AccountId) -> bool {
-		if <DiskOf<T>>::contains_key(&miner) && <StakingInfoOf<T>>::contains_key(&miner) {
+		if DiskOf::<T>::contains_key(&miner) && StakingInfoOf::<T>::contains_key(&miner) {
 			true
 		} else {
 			false
