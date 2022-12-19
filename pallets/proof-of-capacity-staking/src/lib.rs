@@ -675,7 +675,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn is_can_mining(miner: T::AccountId) -> result::Result<bool, DispatchError> {
+	pub fn is_can_mining(miner: T::AccountId) -> result::Result<bool, DispatchError> {
 		ensure!(Self::is_register(miner.clone()), Error::<T>::NotRegister);
 
 		ensure!(!DiskOf::<T>::get(&miner).unwrap().is_stop, Error::<T>::AlreadyStopMining);

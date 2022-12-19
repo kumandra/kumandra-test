@@ -25,7 +25,7 @@ pub trait WeightInfo {
 	fn set_difficulty() -> Weight;
 	fn set_adjust_difficulty_duration() -> Weight;
 	fn set_capacity_of_per_difficulty() -> Weight;
-
+	fn mining() -> Weight;
 }
 
 /// Weights for pallet_lottery using the Substrate node and recommended hardware.
@@ -45,6 +45,12 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 	fn set_capacity_of_per_difficulty() -> Weight {
 		Weight::from_ref_time(10_000_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(4))
+	}
+
+	fn mining() -> Weight {
+		Weight::from_ref_time(50_000_000)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}

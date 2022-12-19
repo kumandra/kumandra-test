@@ -36,6 +36,11 @@ use frame_support::{
 	traits::{Currency, OnUnbalanced},
 };
 
+use conjugate_poc::{
+	nonce::noncegen_rust,
+	poc_hashing::{calculate_scoop, find_best_deadline_rust},
+};
+
 pub const GIB: u64 = 1024 * 1024 * 1024;
 pub const MININGEXPIRE: u64 = 2;
 pub const SPEED: u64 = 11;
@@ -179,6 +184,8 @@ pub mod pallet {
 		CapacityIsZero,
 		/// data type conversion error
 		ConvertErr,
+		/// submit deadline up max value.
+		DeadlineTooLarge,
 		/// the difficulty up max value.
 		DifficultyIsTooLarge,
 		/// the difficulty should not zero.
@@ -187,8 +194,16 @@ pub mod pallet {
 		DivZero,
 		/// the block number should not zero.
 		DurationIsZero,
+		/// submit deadline too delay.
+		HeightNotInDuration,
+		/// not best deadline
+		NotBestDeadline,
 		/// not register.
 		NotRegister,
+		/// not your plot id.
+		PidErr,
+		/// deadline verify failed.
+		VerifyFaile,
 	}
 
 	#[pallet::hooks]
@@ -317,6 +332,105 @@ pub mod pallet {
 			CapacityOfPerDifficulty::<T>::put(capacity);
 
 			Self::deposit_event(Event::<T>::SetCapacityOfPerDifficulty { capacity });
+
+			Ok(())
+		}
+
+		/// submit deadline.
+		#[pallet::call_index(3)]
+		#[pallet::weight(<T as Config>::WeightInfo::mining())]
+		pub fn mining(
+			origin: OriginFor<T>,
+			account_id: u64,
+			height: u64,
+			sig: [u8; 32],
+			nonce: u64,
+			deadline: u64,
+		) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			<ActiveMiners<T>>::mutate(|h| {
+				if h.1.insert(miner.clone()) {
+					h.0 += 1;
+				}
+			});
+
+			log::debug!(
+				"miner: {:?},  submit deadline!, height = {}, deadline = {}",
+				miner.clone(),
+				height,
+				deadline
+			);
+
+			ensure!(deadline <= T::MaxDeadlineValue::get(), Error::<T>::DeadlineTooLarge);
+
+			ensure!(
+				<pallet_poc_staking::Pallet<T>>::is_can_mining(miner.clone())?,
+				Error::<T>::NotRegister
+			);
+
+			let real_pid = <pallet_poc_staking::Pallet<T>>::disk_of(&miner).unwrap().numeric_id;
+
+			ensure!(real_pid == account_id.into(), Error::<T>::PidErr);
+
+			let current_block = <frame_system::Pallet<T>>::block_number().saturated_into::<u64>();
+
+			log::debug!("starting Verify Deadline !!!");
+
+			if !(current_block / MININGEXPIRE == height / MININGEXPIRE && current_block >= height) {
+				log::debug!(
+					"expire! ：{:?}, off chain get info block: {:?}, deadline is: {:?}",
+					height,
+					current_block,
+					deadline
+				);
+
+				return Err(Error::<T>::HeightNotInDuration)?;
+			}
+
+			let dl = Self::dl_info();
+			let (block, best_dl) = if let Some(dl_info) = dl.iter().last() {
+				(dl_info.clone().block, dl_info.best_dl)
+			} else {
+				(0, core::u64::MAX)
+			};
+
+			// Someone(miner) has mined a better deadline at this mining cycle before.
+			if best_dl <= deadline && current_block / MININGEXPIRE == block / MININGEXPIRE {
+				log::debug!(
+					"not best deadline! best_dl = {}, submit deadline = {}!",
+					best_dl,
+					deadline
+				);
+
+				return Err(Error::<T>::NotBestDeadline)?;
+			}
+
+			let verify_ok = Self::verify_dl(account_id, height, sig, nonce, deadline);
+
+			if verify_ok.0 {
+				log::debug!("verify is ok!, deadline = {}", deadline);
+
+				if current_block / MININGEXPIRE == block / MININGEXPIRE {
+					DlInfo::<T>::mutate(|dl| dl.pop());
+				}
+
+				Self::append_dl_info(MiningInfo {
+					miner: Some(miner.clone()),
+					best_dl: deadline,
+					block: current_block,
+				});
+
+				Self::deposit_event(Event::<T>::Minning { miner, deadline });
+			} else {
+				log::debug!(
+					"verify failed! deadline = {:?}, target = {:?}, base_target = {:?}",
+					verify_ok.1 / verify_ok.2,
+					verify_ok.1,
+					verify_ok.2
+				);
+				return Err(Error::<T>::VerifyFaile)?;
+			}
 
 			Ok(())
 		}
@@ -714,5 +828,45 @@ impl<T: Config> Pallet<T> {
 		} else {
 			<UserRewardHistory<T>>::insert(account_id, reward_history);
 		}
+	}
+
+	fn verify_dl(
+		account_id: u64,
+		height: u64,
+		sig: [u8; 32],
+		nonce: u64,
+		deadline: u64,
+	) -> (bool, u64, u64) {
+		let scoop_data = calculate_scoop(height, &sig) as u64;
+		log::debug!("scoop_data: {:?}", scoop_data);
+		log::debug!("sig: {:?}", sig);
+
+		let mut cache = vec![0_u8; 262144];
+
+		noncegen_rust(&mut cache[..], account_id, nonce, 1);
+
+		let mirror_scoop_data = Self::gen_mirror_scoop_data(scoop_data, cache);
+
+		let (target, _) = find_best_deadline_rust(mirror_scoop_data.as_ref(), 1, &sig);
+		log::debug!("target: {:?}", target);
+		let base_target = Self::get_current_base_target();
+		let deadline_ = target / base_target;
+		log::debug!("deadline: {:?}", deadline_);
+		(deadline == target / base_target, target, base_target)
+	}
+
+	fn gen_mirror_scoop_data(scoop_data: u64, cache: Vec<u8>) -> Vec<u8> {
+		let addr = 64 * scoop_data as usize;
+		let mirror_scoop = 4095 - scoop_data as usize;
+		let mirror_addr = 64 * mirror_scoop as usize;
+		let mut mirror_scoop_data = vec![0_u8; 64];
+		mirror_scoop_data[0..32].clone_from_slice(&cache[addr..addr + 32]);
+		mirror_scoop_data[32..64].clone_from_slice(&cache[mirror_addr + 32..mirror_addr + 64]);
+		mirror_scoop_data
+	}
+
+	fn get_current_base_target() -> u64 {
+		let ti = Self::target_info();
+		ti.iter().last().unwrap().base_target
 	}
 }
