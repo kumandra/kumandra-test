@@ -169,11 +169,14 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		Minning { miner: T::AccountId, deadline: u64 },
 		SetAdjustDifficultyDuration { block_num: u64 },
+		SetCapacityOfPerDifficulty { capacity: u64 },
 		SetDifficulty { base_target: u64 },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// the capacity should not empty.
+		CapacityIsZero,
 		/// data type conversion error
 		ConvertErr,
 		/// the difficulty up max value.
@@ -298,6 +301,22 @@ pub mod pallet {
 			ensure!(block_num > 0u64, Error::<T>::DurationIsZero);
 			AdjustDifficultyDuration::<T>::put(block_num);
 			Self::deposit_event(Event::<T>::SetAdjustDifficultyDuration { block_num });
+
+			Ok(())
+		}
+
+		/// how much capacity that one difficulty.
+		#[pallet::call_index(2)]
+		#[pallet::weight(<T as Config>::WeightInfo::set_difficulty())]
+		pub fn set_capacity_of_per_difficulty(
+			origin: OriginFor<T>,
+			capacity: u64,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(capacity != 0u64, Error::<T>::CapacityIsZero);
+			CapacityOfPerDifficulty::<T>::put(capacity);
+
+			Self::deposit_event(Event::<T>::SetCapacityOfPerDifficulty { capacity });
 
 			Ok(())
 		}
