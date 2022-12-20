@@ -21,10 +21,12 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 pub use weights::WeightInfo;
 
-use sp_runtime::{traits::SaturatedConversion, RuntimeDebug};
+use sp_runtime::{traits::SaturatedConversion, DispatchError, RuntimeDebug};
+use sp_std::result;
 
 use frame_support::{
 	dispatch::DispatchResult,
+	ensure,
 	traits::{BalanceStatus, Currency, ReservableCurrency},
 };
 
@@ -172,6 +174,11 @@ pub mod pallet {
 	pub(super) type ListOrder<T: Config> =
 		StorageValue<_, Vec<Order<T::AccountId, BalanceOf<T>>>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn recommend_list)]
+	pub(super) type RecommendList<T: Config> =
+		StorageValue<_, Vec<(T::AccountId, BalanceOf<T>)>, ValueQuery>;
+
 	/// whose url?.
 	#[pallet::storage]
 	#[pallet::getter(fn url)]
@@ -203,11 +210,14 @@ pub mod pallet {
 		DeletedOrder { user_cp: T::AccountId, order_id: u64 },
 		Minning { miner: T::AccountId, deadline: u64 },
 		Registered { who: T::AccountId },
+		RequestUpToList { miner: T::AccountId, amount: BalanceOf<T> },
 		VerifyStorage { miner: T::AccountId, verify: bool },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// Amount not enough
+		AmountNotEnough,
 		/// the capacity should not empty.
 		CapacityIsZero,
 		/// Miners provide insufficient storage capacity
@@ -228,6 +238,8 @@ pub mod pallet {
 		OrderExpired,
 		/// Order not found.
 		OrderNotFound,
+		/// Order is unconfirmed.
+		OrderUnconfirmed,
 		/// User has no op permission to order.
 		PermissionDenyed,
 		/// url already exists
@@ -505,6 +517,48 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		/// verify
+		#[pallet::call_index(4)]
+		#[pallet::weight(<T as Config>::WeightInfo::verify_storage())]
+		pub fn verify_storage(origin: OriginFor<T>, order_id: u64) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+			let mut orders = Self::orders();
+			let order = orders.get_mut(order_id as usize).ok_or(Error::<T>::OrderNotFound)?;
+
+			ensure!(order.status == OrderStatus::Confirmed, Error::<T>::OrderUnconfirmed);
+
+			let now = Self::get_now_ts();
+
+			for mut mo in &mut order.orders {
+				if mo.miner == miner {
+					mo.verify_ts = now;
+					mo.verify_result = true;
+				}
+			}
+			Self::deposit_event(Event::<T>::VerifyStorage { miner, verify: true });
+
+			Ok(())
+		}
+
+		/// the miner apply to recommended list.
+		#[pallet::call_index(5)]
+		#[pallet::weight(<T as Config>::WeightInfo::apply_to_recommended_list())]
+		pub fn apply_to_recommended_list(
+			origin: OriginFor<T>,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			ensure!(<Miners<T>>::contains_key(&miner), Error::<T>::MinerNotFound);
+
+			// TODO: add user to recommended list
+			Self::sort_account_by_amount(miner.clone(), amount)?;
+
+			Self::deposit_event(Event::<T>::RequestUpToList { miner, amount });
+
+			Ok(())
+		}
 	}
 }
 
@@ -582,5 +636,65 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 		return None;
+	}
+
+	fn sort_account_by_amount(
+		miner: T::AccountId,
+		mut amount: BalanceOf<T>,
+	) -> result::Result<(), DispatchError> {
+		let mut old_list = <RecommendList<T>>::get();
+		let mut miner_old_info: Option<(T::AccountId, BalanceOf<T>)> = None;
+
+		if let Some(pos) = old_list.iter().position(|h| h.0 == miner.clone()) {
+			miner_old_info = Some(old_list.remove(pos));
+		}
+		if miner_old_info.is_some() {
+			let old_amount = miner_old_info.clone().unwrap().1;
+
+			ensure!(T::StakingCurrency::can_reserve(&miner, amount), Error::<T>::AmountNotEnough);
+
+			T::StakingCurrency::unreserve(&miner, old_amount);
+
+			amount = amount + old_amount;
+		}
+
+		if old_list.len() == 0 {
+			Self::sort_after(miner, amount, 0, old_list)?;
+		} else {
+			let mut index = 0;
+			for i in old_list.iter() {
+				if i.1 >= amount {
+					index += 1;
+				} else {
+					break;
+				}
+			}
+
+			Self::sort_after(miner, amount, index, old_list)?;
+		}
+
+		Ok(())
+	}
+
+	fn sort_after(
+		miner: T::AccountId,
+		amount: BalanceOf<T>,
+		index: usize,
+		mut old_list: Vec<(T::AccountId, BalanceOf<T>)>,
+	) -> result::Result<(), DispatchError> {
+		T::StakingCurrency::reserve(&miner, amount)?;
+
+		old_list.insert(index, (miner, amount));
+
+		if old_list.len() > 20 {
+			let abandon = old_list.split_off(20);
+			for i in abandon {
+				T::StakingCurrency::unreserve(&i.0, i.1);
+			}
+		}
+
+		<RecommendList<T>>::put(old_list);
+
+		Ok(())
 	}
 }
