@@ -210,6 +210,7 @@ pub mod pallet {
 		DeletedOrder { user_cp: T::AccountId, order_id: u64 },
 		Minning { miner: T::AccountId, deadline: u64 },
 		Registered { who: T::AccountId },
+		RequestDownFromList { miner: T::AccountId },
 		RequestUpToList { miner: T::AccountId, amount: BalanceOf<T> },
 		VerifyStorage { miner: T::AccountId, verify: bool },
 	}
@@ -232,6 +233,8 @@ pub mod pallet {
 		NoneDays,
 		/// Total staking is zero.
 		NoneStaking,
+		/// Not in recomment list
+		NotInList,
 		/// Order is already deleted.
 		OrderDeleted,
 		/// Order is already expired.
@@ -556,6 +559,28 @@ pub mod pallet {
 			Self::sort_account_by_amount(miner.clone(), amount)?;
 
 			Self::deposit_event(Event::<T>::RequestUpToList { miner, amount });
+
+			Ok(())
+		}
+
+		/// the miner drop out recommended list.
+		#[pallet::call_index(6)]
+		#[pallet::weight(<T as Config>::WeightInfo::drop_out_recommended_list())]
+		pub fn drop_out_recommended_list(origin: OriginFor<T>) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+
+			let mut list = <RecommendList<T>>::get();
+			if let Some(pos) = list.iter().position(|h| h.0 == miner) {
+				let amount = list.remove(pos).1;
+
+				T::StakingCurrency::unreserve(&miner, amount);
+
+				<RecommendList<T>>::put(list);
+			} else {
+				return Err(Error::<T>::NotInList)?;
+			}
+
+			Self::deposit_event(Event::<T>::RequestDownFromList { miner });
 
 			Ok(())
 		}
