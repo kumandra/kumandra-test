@@ -24,14 +24,10 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate.git", bran
 frame-support = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 
-pallet-babe = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 pallet-balances = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 pallet-treasury = {git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 
 pallet-poc-staking = { path = "../proof-of-capacity-staking", default-features = false }
-kumandra-primitives = { path = "../../primitives", default-features = false }
 conjugate-poc = { path = "../../conjugate-poc", default-features = false }
 
 [features]
@@ -49,12 +45,7 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-balances/std",
-	"pallet-babe/std",
-	"pallet-staking/std",
-	"pallet-timestamp/std",
 	"pallet-treasury/std",
-	"kumandra-primitives/std",
 	"pallet-poc-staking/std",
-	"kumandra-primitives/std",
 	"conjugate-poc/std",
 ]
