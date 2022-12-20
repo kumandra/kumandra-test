@@ -84,7 +84,7 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 pallet-vesting = { git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.34", default-features = false }
 
 # local
-pallet-poc = { path = "../pallets/proof-of-capacity-staking", default-features = false }
+pallet-poc-staking = { path = "../pallets/proof-of-capacity-staking", default-features = false }
 
 kumandra-primitives = { path = "../primitives", default-features = false }
 
@@ -161,7 +161,7 @@ std = [
 	"pallet-treasury/std",
 	"pallet-child-bounties/std",
 	"pallet-utility/std",
-	"pallet-poc/std",
+	"pallet-poc-staking/std",
 
 	"kumandra-primitives/std",
 ]
