@@ -4210,6 +4210,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "pallet-babe"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34#1cc97dd30537997ff4c9827beb2ef0cac9c49063"
@@ -4254,6 +4255,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> origin/main
 name = "pallet-balances"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34#1cc97dd30537997ff4c9827beb2ef0cac9c49063"
@@ -4614,17 +4617,20 @@ name = "pallet-poc"
 version = "1.0.0"
 dependencies = [
  "conjugate-poc",
+<<<<<<< HEAD
  "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "kumandra-primitives",
+=======
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+>>>>>>> origin/main
  "log",
  "num-traits",
- "pallet-babe",
  "pallet-balances",
  "pallet-poc-staking",
- "pallet-staking",
- "pallet-timestamp",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
@@ -4643,10 +4649,8 @@ dependencies = [
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "kumandra-primitives",
- "pallet-babe",
  "pallet-balances",
  "pallet-staking",
- "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -4802,6 +4806,27 @@ dependencies = [
  "sp-io 7.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "sp-runtime 7.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
  "sp-std 5.0.0 (git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34)",
+]
+
+[[package]]
+name = "pallet-storage"
+version = "1.0.0"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "kumandra-primitives",
+ "log",
+ "pallet-balances",
+ "pallet-staking",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "serde_derive",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7437,6 +7462,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "sp-consensus"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34#1cc97dd30537997ff4c9827beb2ef0cac9c49063"
@@ -7554,6 +7580,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> origin/main
 name = "sp-core"
 version = "7.0.0"
 source = "git+https://github.com/paritytech/substrate.git?branch=polkadot-v0.9.34#1cc97dd30537997ff4c9827beb2ef0cac9c49063"

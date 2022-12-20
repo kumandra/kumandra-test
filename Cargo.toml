@@ -1,9 +1,15 @@
 [workspace]
 members = [
     "conjugate-poc",
+<<<<<<< HEAD
     "pallets/proof-of-capacity",
     "pallets/proof-of-capacity-staking",
     "node",
+=======
+	"pallets/proof-of-capacity",
+	"pallets/proof-of-capacity-staking",
+	"pallets/storage",
+>>>>>>> origin/main
 ]
 [profile.release]
 panic = "unwind"
