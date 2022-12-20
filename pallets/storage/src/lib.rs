@@ -200,6 +200,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		ConfirmedOrder { miner_cp: T::AccountId, order_id: u64 },
 		CreatedOrder { user: T::AccountId },
+		DeletedOrder { user_cp: T::AccountId, order_id: u64 },
 		Minning { miner: T::AccountId, deadline: u64 },
 		Registered { who: T::AccountId },
 		VerifyStorage { miner: T::AccountId, verify: bool },
@@ -227,6 +228,8 @@ pub mod pallet {
 		OrderExpired,
 		/// Order not found.
 		OrderNotFound,
+		/// User has no op permission to order.
+		PermissionDenyed,
 		/// url already exists
 		UrlExists,
 	}
@@ -469,6 +472,36 @@ pub mod pallet {
 				Ok(())
 			})?;
 			Self::deposit_event(Event::<T>::ConfirmedOrder { miner_cp, order_id });
+
+			Ok(())
+		}
+
+		/// users delete their order.
+		#[pallet::call_index(3)]
+		#[pallet::weight(<T as Config>::WeightInfo::delete_order())]
+		pub fn delete_order(origin: OriginFor<T>, order_id: u64) -> DispatchResult {
+			let user = ensure_signed(origin)?;
+			let user_cp = user.clone();
+			Orders::<T>::mutate(|os| -> DispatchResult {
+				let mut order = os.get_mut(order_id as usize).ok_or(Error::<T>::OrderNotFound)?;
+				ensure!(user == order.user, Error::<T>::PermissionDenyed);
+				ensure!(order.status != OrderStatus::Deleted, Error::<T>::OrderDeleted);
+				ensure!(order.status != OrderStatus::Expired, Error::<T>::OrderExpired);
+
+				let now = Self::get_now_ts();
+				order.status = OrderStatus::Deleted;
+				order.update_ts = now;
+				// unreserve some user's funds
+				let days_to_deadline: u64 = (order.duration + order.update_ts - now) / DAY;
+				let mut refund = 0u64.saturated_into::<BalanceOf<T>>();
+				for mo in &order.orders {
+					refund += mo.day_price;
+				}
+				refund = refund * days_to_deadline.saturated_into::<BalanceOf<T>>();
+				T::StakingCurrency::unreserve(&order.user, refund);
+				Ok(())
+			})?;
+			Self::deposit_event(Event::<T>::DeletedOrder { user_cp, order_id });
 
 			Ok(())
 		}
