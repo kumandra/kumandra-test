@@ -435,7 +435,7 @@ pub mod pallet {
 
 		/// the miner confirm the order.
 		#[pallet::call_index(2)]
-		#[pallet::weight(<T as Config>::WeightInfo::create_order())]
+		#[pallet::weight(<T as Config>::WeightInfo::confirm_order())]
 		pub fn confirm_order(origin: OriginFor<T>, order_id: u64, url: Vec<u8>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
 			let miner_cp = miner.clone();
