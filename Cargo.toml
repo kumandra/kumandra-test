@@ -3,6 +3,7 @@ members = [
     "conjugate-poc",
 	"pallets/proof-of-capacity",
 	"pallets/proof-of-capacity-staking",
+	"pallets/storage",
 ]
 [profile.release]
 panic = "unwind"
