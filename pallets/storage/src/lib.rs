@@ -198,10 +198,11 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		ConfirmedOrder { miner_cp: T::AccountId, order_id: u64 },
 		CreatedOrder { user: T::AccountId },
 		Minning { miner: T::AccountId, deadline: u64 },
-		VerifyStorage { miner: T::AccountId, verify: bool },
 		Registered { who: T::AccountId },
+		VerifyStorage { miner: T::AccountId, verify: bool },
 	}
 
 	#[pallet::error]
@@ -212,10 +213,20 @@ pub mod pallet {
 		InsufficientCapacity,
 		/// Miner not found.
 		MinerNotFound,
+		/// Miner-order not found.
+		MinerOrderNotFound,
 		/// None Capacity
 		NoneCapacity,
 		/// None day
 		NoneDays,
+		/// Total staking is zero.
+		NoneStaking,
+		/// Order is already deleted.
+		OrderDeleted,
+		/// Order is already expired.
+		OrderExpired,
+		/// Order not found.
+		OrderNotFound,
 		/// url already exists
 		UrlExists,
 	}
@@ -331,7 +342,7 @@ pub mod pallet {
 
 		/// the user create the order.
 		#[pallet::call_index(1)]
-		#[pallet::weight(<T as Config>::WeightInfo::register_miner())]
+		#[pallet::weight(<T as Config>::WeightInfo::create_order())]
 		pub fn create_order(
 			origin: OriginFor<T>,
 			miner: T::AccountId,
@@ -421,6 +432,46 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		/// the miner confirm the order.
+		#[pallet::call_index(2)]
+		#[pallet::weight(<T as Config>::WeightInfo::create_order())]
+		pub fn confirm_order(origin: OriginFor<T>, order_id: u64, url: Vec<u8>) -> DispatchResult {
+			let miner = ensure_signed(origin)?;
+			let miner_cp = miner.clone();
+
+			// must check total staking, if is zero, cannot confirm order.
+			let miner_info = Self::miners(&miner).ok_or(Error::<T>::MinerNotFound)?;
+			ensure!(
+				miner_info.total_staking > 0u64.saturated_into::<BalanceOf<T>>(),
+				Error::<T>::NoneStaking
+			);
+
+			let now = Self::get_now_ts();
+			Orders::<T>::mutate(|os| -> DispatchResult {
+				let mut order = os.get_mut(order_id as usize).ok_or(Error::<T>::OrderNotFound)?;
+
+				ensure!(order.status != OrderStatus::Deleted, Error::<T>::OrderDeleted);
+				ensure!(order.status != OrderStatus::Expired, Error::<T>::OrderExpired);
+
+				let mut miner_order = Self::find_miner_order(miner, &mut order.orders)
+					.ok_or(Error::<T>::MinerOrderNotFound)?;
+				miner_order.confirm_ts = now;
+				miner_order.url = Some(url);
+				// update order's status and update_ts
+				if order.status == OrderStatus::Created {
+					order.status = OrderStatus::Confirmed;
+					order.update_ts = now;
+				}
+
+				// reserve some user's funds for the order
+				T::StakingCurrency::reserve(&order.user, miner_order.total_price)?;
+				Ok(())
+			})?;
+			Self::deposit_event(Event::<T>::ConfirmedOrder { miner_cp, order_id });
+
+			Ok(())
+		}
 	}
 }
 
@@ -486,5 +537,17 @@ impl<T: Config> Pallet<T> {
 		}
 		miner_history.push(order);
 		MinerHistory::<T>::insert(miner, miner_history);
+	}
+
+	fn find_miner_order(
+		miner: T::AccountId,
+		os: &mut Vec<MinerOrder<T::AccountId, BalanceOf<T>>>,
+	) -> Option<&mut MinerOrder<T::AccountId, BalanceOf<T>>> {
+		for o in os {
+			if o.miner == miner {
+				return Some(o);
+			}
+		}
+		return None;
 	}
 }
