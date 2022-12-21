@@ -85,6 +85,8 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate.git", branch =
 
 # local
 pallet-poc-staking = { path = "../pallets/proof-of-capacity-staking", default-features = false }
+pallet-poc = { path = "../pallets/proof-of-capacity", default-features = false }
+pallet-storage = { path = "../pallets/storage", default-features = false }
 
 kumandra-primitives = { path = "../primitives", default-features = false }
 
@@ -162,6 +164,8 @@ std = [
 	"pallet-child-bounties/std",
 	"pallet-utility/std",
 	"pallet-poc-staking/std",
+	"pallet-poc/std",
+	"pallet-storage/std",
 
 	"kumandra-primitives/std",
 ]

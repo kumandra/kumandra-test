@@ -328,6 +328,71 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
+impl pallet_storage::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	
+	type StakingCurrency = Balances;
+}
+
+parameter_types! {
+	pub const ChillDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
+	pub const StakingDeposit: Balance = 1 * DOLLARS;
+	pub const PocStakingMinAmount: Balance = 100 * DOLLARS;
+	pub const StakerMaxNumber: usize = 64;
+	pub const RecommendMaxNumber: usize = 50;
+	pub const StakingLockExpire: BlockNumber = 7*DAYS;
+	pub const RecommendLockExpire: BlockNumber = 7*DAYS;
+}
+
+impl pallet_poc_staking::Config for Runtime {
+	type Event = Event;
+
+	type ChillDuration = ChillDuration;
+
+	type StakingCurrency = Balances;
+
+	type StakingDeposit = StakingDeposit;
+
+	type StakingSlash = ();
+
+	type StakerMaxNumber = StakerMaxNumber;
+
+	type PocHandler = PoC;
+
+	type StakingLockExpire = StakingLockExpire;
+
+	type RecommendLockExpire = RecommendLockExpire;
+
+	type RecommendMaxNumber = RecommendMaxNumber;
+
+	type PocStakingMinAmount = PocStakingMinAmount;
+}
+
+parameter_types! {
+	pub const GENESIS_BASE_TARGET: u64 = 366503875925;
+
+	pub const TotalMiningReward: Balance = 5_0000_0000 * DOLLARS;
+
+	pub const ProbabilityDeviationValue: Percent = Percent::from_percent(50);
+
+	pub const MaxDeadlineValue: u64 = 12000;
+}
+
+impl pallet_poc::Config for Runtime {
+	type Event = Event;
+
+	type GENESIS_BASE_TARGET = GENESIS_BASE_TARGET;
+
+	type PocAddOrigin = ();
+
+	type TotalMiningReward = TotalMiningReward;
+
+	type ProbabilityDeviationValue = ProbabilityDeviationValue;
+
+	type MaxDeadlineValue = MaxDeadlineValue;
+}
+
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		RuntimeBlockWeights::get().max_block;
@@ -1235,6 +1300,11 @@ construct_runtime!(
 		ChildBounties: pallet_child_bounties,
 		NominationPools: pallet_nomination_pools,
 		FastUnstake: pallet_fast_unstake,
+		// Kumandra Pallets
+		PocStaking: pallet_poc_staking,
+		Poc: pallet_poc,
+		Storage: pallet_storage,
+
 	}
 );
 
