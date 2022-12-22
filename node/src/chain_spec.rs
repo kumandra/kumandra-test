@@ -213,9 +213,11 @@ fn testnet_genesis(
 			keys: initial_authorities
 				.iter()
 				.map(|x| {
-					x.0.clone(),
-					x.0.clone(),
-					session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
+					(
+						x.0.clone(),
+						x.0.clone(),
+						session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
+					)
 				})
 				.collect::<Vec<_>>(),
 		},
@@ -227,7 +229,7 @@ fn testnet_genesis(
 				.iter()
 				.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
 				.collect(), 
-			invulnerables: initial_autho		// TODO! Pallet Demoncracyrities.iter().map(|x| x.0.clone()).collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
@@ -261,7 +263,7 @@ fn testnet_genesis(
 				..Default::default()
 			},
 		},
-		babe: BabeConfig { authorities: vec![] }
+		babe: BabeConfig { authorities: vec![] },
 		grandpa: GrandpaConfig { authorities: vec![] },
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
@@ -281,14 +283,16 @@ fn get_properties() -> Map<String, Value> {
 	properties
 }
 
-fn testnet_net_config_genesis() -> GenesisConfig {
+fn testnet_config_genesis() -> GenesisConfig {
+	let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
+
 	let initial_authorities = get_staging_initial_authorities();
 
 	let root_key = get_root();
 
 	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
 
-	testnet_genesis(initial_authorities, root_key, Some(endowed_accounts), false)
+	testnet_genesis(wasm_binary, initial_authorities, root_key, Some(endowed_accounts), false )
 }
 
 fn get_staging_initial_authorities(
