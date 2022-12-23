@@ -20,6 +20,8 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 512.
 #![recursion_limit = "512"]
 
+
+use sp_session::runtime_decl_for_SessionKeys::SessionKeys;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
@@ -329,10 +331,10 @@ impl pallet_proxy::Config for Runtime {
 }
 
 impl pallet_storage::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
 	
 	type StakingCurrency = Balances;
+    type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -346,31 +348,34 @@ parameter_types! {
 }
 
 impl pallet_poc_staking::Config for Runtime {
-	type Event = Event;
 
-	type ChillDuration = ChillDuration;
+	type RuntimeEvent = RuntimeEvent;
 
 	type StakingCurrency = Balances;
-
-	type StakingDeposit = StakingDeposit;
-
-	type StakingSlash = ();
-
-	type StakerMaxNumber = StakerMaxNumber;
-
-	type PocHandler = PoC;
-
-	type StakingLockExpire = StakingLockExpire;
 
 	type RecommendLockExpire = RecommendLockExpire;
 
 	type RecommendMaxNumber = RecommendMaxNumber;
 
+	// type PocHandler = Poc;
+
+	type ChillDuration = ChillDuration;
+
+    type StakingLockExpire = StakingLockExpire;
+
+	type StakingSlash = ();
+
+	type StakingDeposit = StakingDeposit;
+
 	type PocStakingMinAmount = PocStakingMinAmount;
+
+	type StakerMaxNumber = StakerMaxNumber;
+
+	type WeightInfo = pallet_poc_staking::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
-	pub const GENESIS_BASE_TARGET: u64 = 366503875925;
+	pub const genesis_base_target: u64 = 366503875925;
 
 	pub const TotalMiningReward: Balance = 5_0000_0000 * DOLLARS;
 
@@ -380,9 +385,8 @@ parameter_types! {
 }
 
 impl pallet_poc::Config for Runtime {
-	type Event = Event;
 
-	type GENESIS_BASE_TARGET = GENESIS_BASE_TARGET;
+	type GenesisBaseTarget = genesis_base_target;
 
 	type PocAddOrigin = ();
 
@@ -391,6 +395,14 @@ impl pallet_poc::Config for Runtime {
 	type ProbabilityDeviationValue = ProbabilityDeviationValue;
 
 	type MaxDeadlineValue = MaxDeadlineValue;
+
+    type RuntimeEvent = RuntimeEvent;
+
+    type BlockTime = ();
+    
+    type CapacityPrice = ();
+
+	type WeightInfo = pallet_poc::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -539,14 +551,36 @@ impl pallet_authorship::Config for Runtime {
 	type EventHandler = (Staking, ImOnline);
 }
 
-impl_opaque_keys! {
-	pub struct SessionKeys {
+pub mod opaque {
+	use super::*;
+
+	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
+
+	/// Opaque block header type.
+	pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	/// Opaque block type.
+	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+	/// Opaque block identifier type.
+	pub type BlockId = generic::BlockId<Block>;
+
+	impl_opaque_keys! {
+		pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub authority_discovery: AuthorityDiscovery,
+		}
 	}
 }
+
+// impl_opaque_keys! {
+// 	pub struct SessionKeys {
+// 		pub grandpa: Grandpa,
+// 		pub babe: Babe,
+// 		pub im_online: ImOnline,
+// 		pub authority_discovery: AuthorityDiscovery,
+// 	}
+// }
 
 impl pallet_session::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -555,8 +589,8 @@ impl pallet_session::Config for Runtime {
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
-	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
-	type Keys = SessionKeys;
+	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type Keys = opaque::SessionKeys;
 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1302,7 +1336,7 @@ construct_runtime!(
 		FastUnstake: pallet_fast_unstake,
 		// Kumandra Pallets
 		PocStaking: pallet_poc_staking,
-		Poc: pallet_poc,
+		PoC: pallet_poc,
 		Storage: pallet_storage,
 
 	}
@@ -1577,13 +1611,13 @@ impl_runtime_apis! {
 
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-			SessionKeys::generate(seed)
+			opaque::SessionKeys::generate(seed)
 		}
 
 		fn decode_session_keys(
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
-			SessionKeys::decode_into_raw_public_keys(&encoded)
+			opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
 		}
 	}
 

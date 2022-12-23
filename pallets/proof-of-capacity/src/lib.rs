@@ -13,6 +13,8 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
+#![cfg_attr(not(feature = "std"), no_std)]
+
 
 pub use pallet::*;
 
@@ -22,6 +24,10 @@ pub use weights::WeightInfo;
 use num_traits::{CheckedDiv, Zero};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+
+use frame_support::inherent::Vec;
+use scale_info::prelude::vec;
+
 
 use frame_support::traits::Get;
 use sp_std::result;

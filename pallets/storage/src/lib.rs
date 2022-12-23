@@ -13,6 +13,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
+#![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
 
@@ -20,6 +21,9 @@ pub mod weights;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 pub use weights::WeightInfo;
+
+use frame_support::inherent::Vec;
+use scale_info::prelude::vec;
 
 use sp_runtime::{traits::SaturatedConversion, DispatchError, RuntimeDebug};
 use sp_std::result;

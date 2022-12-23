@@ -14,11 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 pub use pallet::*;
 
+use scale_info::prelude::vec::Vec;
+use scale_info::prelude::vec;
 pub mod traits;
 pub mod weights;
-pub use traits::PocHandler;
 pub use weights::WeightInfo;
 
 use parity_scale_codec::{Decode, Encode};
@@ -119,7 +122,6 @@ pub mod pallet {
 
 		type RecommendMaxNumber: Get<usize>;
 
-		type PocHandler: PocHandler<Self::AccountId>;
 
 		type ChillDuration: Get<Self::BlockNumber>;
 
@@ -459,7 +461,6 @@ pub mod pallet {
 
 			ensure!(Self::is_chill_time(), Error::<T>::ChillTime);
 
-			T::PocHandler::remove_history(miner.clone());
 
 			let now = Self::now();
 
@@ -526,7 +527,6 @@ pub mod pallet {
 					MiningMiners::<T>::mutate(|h| h.insert(miner.clone()));
 				}
 			});
-			T::PocHandler::remove_history(miner.clone());
 
 			Self::deposit_event(Event::<T>::RestartMining { miner });
 
