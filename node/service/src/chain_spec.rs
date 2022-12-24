@@ -16,6 +16,7 @@
 
 //! Kumandra chain configurations.
 
+use kumandra_runtime::opaque::SessionKeys;
 use frame_support::weights::Weight;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -24,7 +25,7 @@ use kumandra_primitives::{AccountId, AccountPublic};
 #[cfg(feature = "kumandra-native")]
 use kumandra_runtime as kumandra;
 #[cfg(feature = "kumandra-native")]
-use kumandra_runtime::constant::currency::DOLLARS as KMD;
+use kumandra_runtime::constants::currency::DOLLARS as KMD;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 
@@ -78,8 +79,8 @@ fn kumandra_session_keys(
 	grandpa: GrandpaId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
-) -> kumandra::SessionKeys {
-	kumandra::SessionKeys {
+) -> SessionKeys {
+	SessionKeys {
 		babe,
 		grandpa,
 		im_online,
@@ -127,8 +128,6 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 							x.3.clone(),
 							x.4.clone(),
 							x.5.clone(),
-							x.6.clone(),
-							x.7.clone(),
 						),
 					)
 				})
@@ -146,7 +145,7 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		phragmen_election: Default::default(),
+		elections: Default::default(),
 		democracy: Default::default(),
 		council: kumandra::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: kumandra::TechnicalCommitteeConfig {
@@ -161,16 +160,11 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 		grandpa: Default::default(),
 		im_online: Default::default(),
 		authority_discovery: kumandra::AuthorityDiscoveryConfig { keys: vec![] },
-		claims: kumandra::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: kumandra::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
-		hrmp: Default::default(),
-		configuration: kumandra::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
-		},
-		paras: Default::default(),
-		xcm_pallet: Default::default(),
+        transaction_payment: Default::default(),
 		nomination_pools: Default::default(),
+        sudo: kumandra::SudoConfig { key: Default::default() },
 	}
 }
 
@@ -225,28 +219,7 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn get_authority_keys_from_seed(
 	seed: &str,
-) -> (
-	AccountId,
-	AccountId,
-	BabeId,
-	GrandpaId,
-	AuthorityDiscoveryId,
-) {
-	let keys = get_authority_keys_from_seed_no_beefy(seed);
-	(keys.0, keys.1, keys.2, keys.3, keys.4, keys.5, keys.6, keys.7, get_from_seed::<BeefyId>(seed))
-}
-
-/// Helper function to generate stash, controller and session key from seed
-pub fn get_authority_keys_from_seed_no_beefy(
-	seed: &str,
-) -> (
-	AccountId,
-	AccountId,
-	BabeId,
-	GrandpaId,
-	ImOnlineId,
-	AuthorityDiscoveryId,
-) {
+) -> (AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, AuthorityDiscoveryId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
@@ -283,6 +256,7 @@ pub fn kumandra_testnet_genesis(
 		AccountId,
 		BabeId,
 		GrandpaId,
+        ImOnlineId,
 		AuthorityDiscoveryId,
 	)>,
 	_root_key: AccountId,
@@ -311,8 +285,6 @@ pub fn kumandra_testnet_genesis(
 							x.3.clone(),
 							x.4.clone(),
 							x.5.clone(),
-							x.6.clone(),
-							x.7.clone(),
 						),
 					)
 				})
@@ -330,7 +302,8 @@ pub fn kumandra_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		phragmen_election: Default::default(),
+		elections: Default::default(),
+        transaction_payment: Default::default(),
 		democracy: kumandra::DemocracyConfig::default(),
 		council: kumandra::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: kumandra::TechnicalCommitteeConfig {
@@ -345,10 +318,10 @@ pub fn kumandra_testnet_genesis(
 		grandpa: Default::default(),
 		im_online: Default::default(),
 		authority_discovery: kumandra::AuthorityDiscoveryConfig { keys: vec![] },
-		claims: kumandra::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: kumandra::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
 		nomination_pools: Default::default(),
+        sudo: kumandra::SudoConfig { key: Some(_root_key) },
 	}
 }
 
@@ -358,7 +331,7 @@ pub fn kumandra_testnet_genesis(
 fn kumandra_development_config_genesis(wasm_binary: &[u8]) -> kumandra::GenesisConfig {
 	kumandra_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed_no_beefy("Alice")],
+		vec![get_authority_keys_from_seed("Alice")],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
@@ -390,8 +363,8 @@ fn kumandra_local_testnet_genesis(wasm_binary: &[u8]) -> kumandra::GenesisConfig
 	kumandra_testnet_genesis(
 		wasm_binary,
 		vec![
-			get_authority_keys_from_seed_no_beefy("Alice"),
-			get_authority_keys_from_seed_no_beefy("Bob"),
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,

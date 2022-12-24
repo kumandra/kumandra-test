@@ -75,13 +75,13 @@ lru = "0.8"
 
 # Kumandra
 # kumandra-client = { path = "../client", default-features = false, optional = true }
-kumandra-client = { path = "../client" }
+kumandra-client = { path = "../client", default-features = false, optional = true }
 kumandra-primitives = { path = "../../primitives" }
 # polkadot-node-primitives = { path = "../primitives" }
 kumandra-rpc = { path = "../rpc" }
 
 # Kumandra Runtimes
-kumandra-runtime = { path = "../../runtime" }
+kumandra-runtime = { path = "../../runtime", optional = true }
 
 [dev-dependencies]
 # polkadot-test-client = { path = "../test/client" }
@@ -91,28 +91,35 @@ log = "0.4.17"
 assert_matches = "1.5.0"
 tempfile = "3.2"
 
-# [features]
-# default = ["db", "full-node", "polkadot-native"]
-
 [features]
-default = ["db"]
+default = ["db", "full-node", "kumandra-native"]
+
 
 db = [
 	"service/rocksdb"
+]
+
+full-node = [
+	"kumandra-client",
+	"kvdb-rocksdb",
+	"parity-db",
 ]
 
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
-# runtime-benchmarks = [
-# 	"kumandra-runtime?/runtime-benchmarks",
-# 	"service/runtime-benchmarks",
-# ]
-# try-runtime = [
-# 	"kumandra-runtime?/try-runtime",
-# ]
-# fast-runtime = [
-# 	"kumandra-runtime?/fast-runtime",
-# ]
+kumandra-native = [ "kumandra-runtime", "kumandra-client/kumandra" ]
+
+
+runtime-benchmarks = [
+	"kumandra-runtime?/runtime-benchmarks",
+	"service/runtime-benchmarks",
+]
+try-runtime = [
+	"kumandra-runtime?/try-runtime",
+]
+fast-runtime = [
+	"kumandra-runtime?/fast-runtime",
+]
 

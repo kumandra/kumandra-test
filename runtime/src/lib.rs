@@ -21,7 +21,6 @@
 #![recursion_limit = "512"]
 
 
-use sp_session::runtime_decl_for_SessionKeys::SessionKeys;
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
