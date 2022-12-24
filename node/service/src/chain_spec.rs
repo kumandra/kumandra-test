@@ -68,9 +68,9 @@ pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
 pub type KumandraChainSpec = DummyChainSpec;
 
 
-// pub fn kumandra_config() -> Result<KumandraChainSpec, String> {
-// 	KumandraChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kumandra.json")[..])
-// }
+pub fn kumandra_config() -> Result<KumandraChainSpec, String> {
+	KumandraChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kumandra.json")[..])
+}
 
 
 #[cfg(feature = "kumandra-native")]

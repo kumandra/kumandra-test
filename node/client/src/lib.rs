@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot Client
+//! Kumandra Client
 //!
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
@@ -33,7 +33,7 @@ use sp_runtime::{
 use sp_storage::{ChildInfo, StorageData, StorageKey};
 use std::sync::Arc;
 
-// pub mod benchmarking;
+pub mod benchmarking;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
