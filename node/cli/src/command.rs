@@ -92,12 +92,13 @@ impl SubstrateCli for Cli {
 			"kumandra-local" => Box::new(service::chain_spec::kumandra_local_testnet_config()?),
 			#[cfg(feature = "kumandra-native")]
 			"kumandra-staging" => Box::new(service::chain_spec::kumandra_staging_testnet_config()?),
-			path => {
-				let path = std::path::PathBuf::from(path);
+            &_ => todo!(),
+			// path => {
+			// 	let path = std::path::PathBuf::from(path);
 
-				let chain_spec = Box::new(service::KumandraChainSpec::from_json_file(path.clone())?)
-					as Box<dyn service::ChainSpec>;
-			}
+			// 	let chain_spec = Box::new(service::KumandraChainSpec::from_json_file(path.clone())?)
+			// 		as Box<dyn service::ChainSpec>;
+			// }
 		})
 	}
 
@@ -118,7 +119,7 @@ fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
 	let ss58_version = if spec.is_kumandra() {
 		Ss58AddressFormatRegistry::SubstrateAccount
 	} else {
-		Ss58AddressFormatRegistry::KumandraAccount
+		Ss58AddressFormatRegistry::SubstrateAccount
 	}
 	.into();
 
@@ -182,7 +183,7 @@ where
 			None
 		};
 
-		service::build_full(config, service::IsCollator::No, None, false, hwbench)
+		service::build_full(config,None, hwbench)
 			.map(|full| full.task_manager)
 			.map_err(Into::into)
 	})
@@ -193,7 +194,8 @@ pub fn run() -> Result<()> {
 	let cli: Cli = Cli::from_args();
 
 	match &cli.subcommand {
-		None => run_node_inner(cli, None),
+		//None => run_node_inner(cli, None),
+        None => run_node_inner(cli, |_logger_builder, _config| {}),
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
@@ -206,7 +208,7 @@ pub fn run() -> Result<()> {
 
 			runner.async_run(|mut config| {
 				let (client, _, import_queue, task_manager) =
-					service::new_chain_ops(&mut config, None)?;
+					service::new_chain_ops(&mut config)?;
 				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})
 		}
@@ -218,7 +220,7 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, _, _, task_manager) =
-					service::new_chain_ops(&mut config, None).map_err(Error::KumandraService)?;
+					service::new_chain_ops(&mut config).map_err(Error::KumandraService)?;
 				Ok((cmd.run(client, config.database).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		}
@@ -229,7 +231,7 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			Ok(runner.async_run(|mut config| {
-				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
+				let (client, _, _, task_manager) = service::new_chain_ops(&mut config)?;
 				Ok((cmd.run(client, config.chain_spec).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		}
@@ -241,7 +243,7 @@ pub fn run() -> Result<()> {
 
 			Ok(runner.async_run(|mut config| {
 				let (client, _, import_queue, task_manager) =
-					service::new_chain_ops(&mut config, None)?;
+					service::new_chain_ops(&mut config)?;
 				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})?)
 		}
@@ -249,29 +251,17 @@ pub fn run() -> Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.database))?)
 		}
-		Some(Subcommand::Revert(cmd)) => {
-			let runner = cli.create_runner(cmd)?;
-			let chain_spec = &runner.config().chain_spec;
+		// Some(Subcommand::Revert(cmd)) => {
+		// 	let runner = cli.create_runner(cmd)?;
+		// 	let chain_spec = &runner.config().chain_spec;
 
-			set_default_ss58_version(chain_spec);
-
-			Ok(runner.async_run(|mut config| {
-				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
-				let aux_revert = Box::new(|client, backend, blocks| {
-					service::revert_backend(client, backend, blocks, config).map_err(|err| {
-						match err {
-							service::Error::Blockchain(err) => err.into(),
-							// Generic application-specific error.
-							err => sc_cli::Error::Application(err.into()),
-						}
-					})
-				});
-				Ok((
-					cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
-					task_manager,
-				))
-			})?)
-		}
+		// 	set_default_ss58_version(chain_spec);
+		// 		Ok((
+		// 			cmd.run(client, backend, Some(aux_revert)).map_err(Error::SubstrateCli),
+		// 			task_manager,
+		// 		))
+		// 	})?)
+		// }
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -288,7 +278,7 @@ pub fn run() -> Result<()> {
 				}
 				#[cfg(feature = "runtime-benchmarks")]
 				BenchmarkCmd::Storage(cmd) => runner.sync_run(|mut config| {
-					let (client, backend, _, _) = service::new_chain_ops(&mut config, None)?;
+					let (client, backend, _, _) = service::new_chain_ops(&mut config)?;
 					let db = backend.expose_db();
 					let storage = backend.expose_storage();
 
@@ -298,7 +288,7 @@ pub fn run() -> Result<()> {
 					)
 				}),
 				BenchmarkCmd::Block(cmd) => runner.sync_run(|mut config| {
-					let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
+					let (client, _, _, _) = service::new_chain_ops(&mut config)?;
 
 					unwrap_client!(client, cmd.run(client.clone()).map_err(Error::SubstrateCli))
 				}),
@@ -306,7 +296,7 @@ pub fn run() -> Result<()> {
 				BenchmarkCmd::Extrinsic(_) | BenchmarkCmd::Overhead(_) => {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
-						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
+						let (client, _, _, _) = service::new_chain_ops(&mut config)?;
 						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
@@ -336,17 +326,6 @@ pub fn run() -> Result<()> {
 									.map_err(Error::SubstrateCli)
 								)
 							}
-							BenchmarkCmd::Overhead(cmd) => unwrap_client!(
-								client,
-								cmd.run(
-									config,
-									client.clone(),
-									inherent_data,
-									Vec::new(),
-									&remark_builder
-								)
-								.map_err(Error::SubstrateCli)
-							),
 							_ => unreachable!("Ensured by the outside match; qed"),
 						}
 					})
@@ -417,6 +396,7 @@ pub fn run() -> Result<()> {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run::<service::Block>(&config))?)
 		}
+        _ => todo!()
 	}?;
 
 	Ok(())
