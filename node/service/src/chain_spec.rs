@@ -20,7 +20,7 @@ use frame_support::weights::Weight;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
-use kumandra_primitives::{AccountId, AccountPublic, AssignmentId, ValidatorId};
+use kumandra_primitives::{AccountId, AccountPublic};
 #[cfg(feature = "kumandra-native")]
 use kumandra_runtime as kumandra;
 #[cfg(feature = "kumandra-native")]
@@ -36,7 +36,6 @@ use telemetry::TelemetryEndpoints;
 
 #[cfg(feature = "kumandra-native")]
 const KUMANDRA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
-const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "kmd";
 
 /// Node `ChainSpec` extensions.
@@ -56,9 +55,9 @@ pub struct Extensions {
 	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
 }
 
-/// The `ChainSpec` parameterized for the polkadot runtime.
+/// The `ChainSpec` parameterized for the kumandra runtime.
 #[cfg(feature = "kumandra-native")]
-pub type KumandraChainSpec = service::GenericChainSpec<polkadot::GenesisConfig, Extensions>;
+pub type KumandraChainSpec = service::GenericChainSpec<kumandra::GenesisConfig, Extensions>;
 
 // Dummy chain spec, in case when we don't have the native runtime.
 pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
@@ -67,23 +66,11 @@ pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
 #[cfg(not(feature = "kumandra-native"))]
 pub type KumandraChainSpec = DummyChainSpec;
 
-/// The `ChainSpec` parameterized for the `versi` runtime.
-///
-/// As of now `Versi` will just be a clone of `Rococo`, until we need it to differ.
-pub type VersiChainSpec = RococoChainSpec;
 
-pub fn kumandra_config() -> Result<KumandraChainSpec, String> {
-	KumandraChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kumandra.json")[..])
-}
+// pub fn kumandra_config() -> Result<KumandraChainSpec, String> {
+// 	KumandraChainSpec::from_json_bytes(&include_bytes!("../chain-specs/kumandra.json")[..])
+// }
 
-/// The default parachains host configuration.
-#[cfg(any(
-	feature = "kumandra-native"
-))]
-#[cfg(any(
-	feature = "kumandra-native"
-))]
-#[test]
 
 #[cfg(feature = "kumandra-native")]
 fn kumandra_session_keys(
@@ -100,6 +87,7 @@ fn kumandra_session_keys(
 	}
 }
 
+
 #[cfg(feature = "kumandra-native")]
 fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::GenesisConfig {
 	// subkey inspect "$SECRET"
@@ -114,8 +102,8 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 		AuthorityDiscoveryId,
 	)> = vec![];
 
-	const ENDOWMENT: u128 = 1_000_000 * DOT;
-	const STASH: u128 = 100 * DOT;
+	const ENDOWMENT: u128 = 1_000_000 * KMD;
+	const STASH: u128 = 100 * KMD;
 
 	kumandra::GenesisConfig {
 		system: kumandra::SystemConfig { code: wasm_binary.to_vec() },
@@ -134,11 +122,13 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 					(
 						x.0.clone(),
 						x.0.clone(),
-						kumandra(
+						kumandra_session_keys(
 							x.2.clone(),
 							x.3.clone(),
 							x.4.clone(),
 							x.5.clone(),
+							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -158,8 +148,8 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 		},
 		phragmen_election: Default::default(),
 		democracy: Default::default(),
-		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: polkadot::TechnicalCommitteeConfig {
+		council: kumandra::CouncilConfig { members: vec![], phantom: Default::default() },
+		technical_committee: kumandra::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		},
@@ -170,10 +160,16 @@ fn kumandra_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kumandra::Gene
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
-		authority_discovery: polkadot::AuthorityDiscoveryConfig { keys: vec![] },
-		// claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
+		authority_discovery: kumandra::AuthorityDiscoveryConfig { keys: vec![] },
+		claims: kumandra::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: kumandra::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		hrmp: Default::default(),
+		configuration: kumandra::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
+		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
 	}
 }
@@ -211,19 +207,6 @@ pub fn kumandra_staging_testnet_config() -> Result<KumandraChainSpec, String> {
 	))
 }
 
-
-pub fn versi_chain_spec_properties() -> serde_json::map::Map<String, serde_json::Value> {
-	serde_json::json!({
-		"ss58Format": 42,
-		"tokenDecimals": 12,
-		"tokenSymbol": "VRS",
-	})
-	.as_object()
-	.expect("Map given; qed")
-	.clone()
-}
-
-
 /// Helper function to generate a crypto pair from seed
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
 	TPublic::Pair::from_string(&format!("//{}", seed), None)
@@ -247,11 +230,10 @@ pub fn get_authority_keys_from_seed(
 	AccountId,
 	BabeId,
 	GrandpaId,
-	ImOnlineId,
 	AuthorityDiscoveryId,
 ) {
 	let keys = get_authority_keys_from_seed_no_beefy(seed);
-	(keys.0, keys.1, keys.2, keys.3, keys.4, keys.5)
+	(keys.0, keys.1, keys.2, keys.3, keys.4, keys.5, keys.6, keys.7, get_from_seed::<BeefyId>(seed))
 }
 
 /// Helper function to generate stash, controller and session key from seed
@@ -292,7 +274,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 	]
 }
 
-/// Helper function to create polkadot `GenesisConfig` for testing
+/// Helper function to create kumandra `GenesisConfig` for testing
 #[cfg(feature = "kumandra-native")]
 pub fn kumandra_testnet_genesis(
 	wasm_binary: &[u8],
@@ -301,7 +283,6 @@ pub fn kumandra_testnet_genesis(
 		AccountId,
 		BabeId,
 		GrandpaId,
-		ImOnlineId,
 		AuthorityDiscoveryId,
 	)>,
 	_root_key: AccountId,
@@ -330,6 +311,8 @@ pub fn kumandra_testnet_genesis(
 							x.3.clone(),
 							x.4.clone(),
 							x.5.clone(),
+							x.6.clone(),
+							x.7.clone(),
 						),
 					)
 				})
@@ -357,21 +340,22 @@ pub fn kumandra_testnet_genesis(
 		technical_membership: Default::default(),
 		babe: kumandra::BabeConfig {
 			authorities: Default::default(),
-			epoch_config: Some(polkadot::BABE_GENESIS_EPOCH_CONFIG),
+			epoch_config: Some(kumandra::BABE_GENESIS_EPOCH_CONFIG),
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
 		authority_discovery: kumandra::AuthorityDiscoveryConfig { keys: vec![] },
-		// claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
+		claims: kumandra::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: kumandra::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
-		// hrmp: Default::default(),
 		nomination_pools: Default::default(),
 	}
 }
 
+
+
 #[cfg(feature = "kumandra-native")]
-fn kumandr_development_config_genesis(wasm_binary: &[u8]) -> kumandra::GenesisConfig {
+fn kumandra_development_config_genesis(wasm_binary: &[u8]) -> kumandra::GenesisConfig {
 	kumandra_testnet_genesis(
 		wasm_binary,
 		vec![get_authority_keys_from_seed_no_beefy("Alice")],
@@ -399,6 +383,7 @@ pub fn kumandra_development_config() -> Result<KumandraChainSpec, String> {
 		Default::default(),
 	))
 }
+
 
 #[cfg(feature = "kumandra-native")]
 fn kumandra_local_testnet_genesis(wasm_binary: &[u8]) -> kumandra::GenesisConfig {
@@ -431,3 +416,4 @@ pub fn kumandra_local_testnet_config() -> Result<KumandraChainSpec, String> {
 		Default::default(),
 	))
 }
+

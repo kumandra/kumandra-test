@@ -375,7 +375,7 @@ impl pallet_poc_staking::Config for Runtime {
 }
 
 parameter_types! {
-	pub const genesis_base_target: u64 = 366503875925;
+	pub const GenesisBaseTarget: u64 = 366503875925;
 
 	pub const TotalMiningReward: Balance = 5_0000_0000 * DOLLARS;
 
@@ -386,7 +386,7 @@ parameter_types! {
 
 impl pallet_poc::Config for Runtime {
 
-	type GenesisBaseTarget = genesis_base_target;
+	type GenesisBaseTarget = GenesisBaseTarget;
 
 	type PocAddOrigin = ();
 

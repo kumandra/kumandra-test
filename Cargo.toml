@@ -3,7 +3,8 @@ members = [
     "conjugate-poc",
     "pallets/proof-of-capacity",
     "pallets/proof-of-capacity-staking",
-    "node",
+    "runtime",
+    "node/*",
     
 ]
 [profile.release]

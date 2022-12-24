@@ -14,28 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot service. Specialized wrapper over substrate service.
+//! Kumandra service. Specialized wrapper over substrate service.
 
 #![deny(unused_results)]
 
-pub mod chain_spec;
+// dont forget chainspec and test
 
-
-#[cfg(test)]
-mod tests;
-
-#[cfg(feature = "full-node")]
 use {
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
-	gum::info,
 	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
 };
 
-use polkadot_node_subsystem_util::database::Database;
-
-#[cfg(feature = "full-node")]
 pub use {
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -46,25 +37,22 @@ pub use {
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
-#[cfg(feature = "full-node")]
 use service::KeystoreContainer;
 use service::RpcHandlers;
 use telemetry::TelemetryWorker;
-#[cfg(feature = "full-node")]
 use telemetry::{Telemetry, TelemetryWorkerHandle};
 
-#[cfg(feature = "kumandra-native")]
 pub use kumandra_client::KumandraExecutorDispatch;
+
+pub mod chain_spec;
 
 pub use chain_spec::KumandraChainSpec;
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
-use mmr_gadget::MmrGadget;
-#[cfg(feature = "full-node")]
 pub use kumandra_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use kumandra_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash};
+pub use kumandra_primitives::{Block, BlockId, BlockNumber, Hash};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -82,10 +70,7 @@ pub use sp_runtime::{
 	},
 };
 
-#[cfg(feature = "kumandra-native")]
 pub use kumandra_runtime;
-
-
 
 /// Provides the header and block number for a hash.
 ///
@@ -171,53 +156,40 @@ pub enum Error {
 	#[error(transparent)]
 	Consensus(#[from] consensus_common::Error),
 
-	#[error("Failed to create an overseer")]
-	Overseer(#[from] polkadot_overseer::SubsystemError),
-
 	#[error(transparent)]
 	Prometheus(#[from] prometheus_endpoint::PrometheusError),
 
 	#[error(transparent)]
 	Telemetry(#[from] telemetry::Error),
 
-	#[cfg(feature = "full-node")]
-	#[error(transparent)]
-	Availability(#[from] AvailabilityError),
-
-	#[cfg(feature = "full-node")]
 	#[error("Creating a custom database is required for validators")]
 	DatabasePathRequired,
 
-	#[cfg(feature = "full-node")]
-	#[error("Expected at Kumandra runtime feature")]
+	#[error("Expected kumandra runtime feature")]
 	NoRuntime,
 }
 
 /// Can be called for a `Configuration` to identify which network the configuration targets.
 pub trait IdentifyVariant {
-	/// Returns if this is a configuration for the `Polkadot` network.
+	/// Returns if this is a configuration for the `Kumandra` network.
 	fn is_kumandra(&self) -> bool;
-
-	/// Returns if this is a configuration for the `Versi` test network.
-	fn is_versi(&self) -> bool;
 
 	/// Returns true if this configuration is for a development network.
 	fn is_dev(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
-	fn is_polkadot(&self) -> bool {
+
+	fn is_kumandra(&self) -> bool {
 		self.id().starts_with("kumandra") || self.id().starts_with("kmd")
-	}
-	fn is_versi(&self) -> bool {
-		self.id().starts_with("versi") || self.id().starts_with("vrs")
 	}
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
 	}
 }
 
-#[cfg(feature = "full-node")]
+// type FullBackend = service::TFullBackend<Block>;
+type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> =
 	grandpa::GrandpaBlockImport<
 		FullBackend,
@@ -226,7 +198,6 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		ChainSelection,
 	>;
 
-#[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -244,7 +215,6 @@ where
 	telemetry: Option<Telemetry>,
 }
 
-#[cfg(feature = "full-node")]
 fn new_partial_basics<RuntimeApi, ExecutorDispatch>(
 	config: &mut Configuration,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
@@ -258,7 +228,7 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 {
-	let telemetry = config
+    let telemetry = config
 		.telemetry_endpoints
 		.clone()
 		.filter(|x| !x.is_empty())
@@ -275,14 +245,14 @@ where
 		})
 		.transpose()?;
 
-	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
+    let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
 		config.wasm_method,
 		config.default_heap_pages,
 		config.max_runtime_instances,
 		config.runtime_cache_size,
 	);
 
-	let (client, backend, keystore_container, task_manager) =
+    let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, _>(
 			&config,
 			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
@@ -290,7 +260,7 @@ where
 		)?;
 	let client = Arc::new(client);
 
-	let telemetry = telemetry.map(|(worker, telemetry)| {
+    let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
 			task_manager.spawn_handle().spawn(
 				"telemetry",
@@ -300,11 +270,9 @@ where
 		}
 		telemetry
 	});
-
 	Ok(Basics { task_manager, client, backend, keystore_container, telemetry })
 }
 
-#[cfg(feature = "full-node")]
 fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 	config: &mut Configuration,
 	Basics { task_manager, backend, client, keystore_container, telemetry }: Basics<
@@ -328,7 +296,8 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				babe::BabeBlockImport<
 					Block,
 					FullClient<RuntimeApi, ExecutorDispatch>,
-				>,
+					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+					>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
 			),
@@ -349,7 +318,7 @@ where
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 	ChainSelection: 'static + SelectChain<Block>,
 {
-	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
+    let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
 		config.role.is_authority().into(),
 		config.prometheus_registry(),
@@ -357,26 +326,20 @@ where
 		client.clone(),
 	);
 
-	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
-		grandpa_support::kusama_hard_forks()
-	} else {
-		Vec::new()
-	};
-
-	let (grandpa_block_import, grandpa_link) = grandpa::block_import_with_authority_set_hard_forks(
+    let (grandpa_block_import, grandpa_link) = grandpa::block_import(
 		client.clone(),
 		&(client.clone() as Arc<_>),
 		select_chain.clone(),
-		grandpa_hard_forks,
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
-	let justification_import = grandpa_block_import.clone();
 
-	let babe_config = babe::configuration(&*client)?;
-	let (block_import, babe_link) =
-		babe::block_import(babe_config.clone(), client.clone())?;
+    let justification_import = grandpa_block_import.clone();
 
-	let slot_duration = babe_link.config().slot_duration();
+    let babe_config = babe::configuration(&*client)?;
+    let (block_import, babe_link) =
+		babe::block_import(babe_config.clone(), grandpa_block_import, client.clone())?;
+
+    let slot_duration = babe_link.config().slot_duration();
 	let import_queue = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
@@ -399,7 +362,7 @@ where
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let justification_stream = grandpa_link.justification_stream();
+    let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 	let finality_proof_provider = GrandpaFinalityProofProvider::new_for_service(
@@ -407,7 +370,7 @@ where
 		Some(shared_authority_set.clone()),
 	);
 
-	let shared_epoch_changes = babe_link.epoch_changes().clone();
+    let shared_epoch_changes = babe_link.epoch_changes().clone();
 	let slot_duration = babe_config.slot_duration();
 
 	let import_setup = (block_import, grandpa_link, babe_link);
@@ -420,8 +383,7 @@ where
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
 		let backend = backend.clone();
-
-		move |deny_unsafe,
+        move |deny_unsafe,
 		      subscription_executor: kumandra_rpc::SubscriptionTaskExecutor|
 		      -> Result<kumandra_rpc::RpcExtension, service::Error> {
 			let deps = kumandra_rpc::FullDeps {
@@ -448,7 +410,7 @@ where
 		}
 	};
 
-	Ok(service::PartialComponents {
+    Ok(service::PartialComponents {
 		client,
 		backend,
 		task_manager,
@@ -460,79 +422,25 @@ where
 	})
 }
 
-#[cfg(feature = "full-node")]
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub overseer_handle: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
 }
 
-#[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
 	/// Convert the client type using the given `func`.
 	pub fn with_client<NC>(self, func: impl FnOnce(C) -> NC) -> NewFull<NC> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
-			overseer_handle: self.overseer_handle,
 			network: self.network,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
 		}
 	}
-}
-
-/// Returns the active leaves the overseer should start with.
-#[cfg(feature = "full-node")]
-async fn active_leaves<RuntimeApi, ExecutorDispatch>(
-	select_chain: &impl SelectChain<Block>,
-	client: &FullClient<RuntimeApi, ExecutorDispatch>,
-) -> Result<Vec<BlockInfo>, Error>
-where
-	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
-		+ Send
-		+ Sync
-		+ 'static,
-	RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-	ExecutorDispatch: NativeExecutionDispatch + 'static,
-{
-	let best_block = select_chain.best_chain().await?;
-
-	let mut leaves = select_chain
-		.leaves()
-		.await
-		.unwrap_or_default()
-		.into_iter()
-		.filter_map(|hash| {
-			let number = HeaderBackend::number(client, hash).ok()??;
-
-			// Only consider leaves that are in maximum an uncle of the best block.
-			if number < best_block.number().saturating_sub(1) {
-				return None
-			} else if hash == best_block.hash() {
-				return None
-			};
-
-			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
-
-			Some(BlockInfo { hash, parent_hash, number })
-		})
-		.collect::<Vec<_>>();
-
-	// Sort by block number and get the maximum number of leaves
-	leaves.sort_by_key(|b| b.number);
-
-	leaves.push(BlockInfo {
-		hash: best_block.hash(),
-		parent_hash: *best_block.parent_hash(),
-		number: *best_block.number(),
-	});
-
-	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
 
 /// Create a new full node of arbitrary runtime and executor.
@@ -543,14 +451,10 @@ where
 /// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
 /// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
 /// still determined based on the role of the node. Likewise for authority discovery.
-#[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch>(
 	mut config: Configuration,
-	is_collator: IsCollator,
-	grandpa_pause: Option<(u32, u32)>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
-	_malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, ExecutorDispatch>>>, Error>
 where
@@ -561,28 +465,16 @@ where
 	RuntimeApi::RuntimeApi:
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
-	OverseerGenerator: OverseerGen,
 {
-	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
+    let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
-
-		if config.chain_spec.is_rococo() ||
-			config.chain_spec.is_wococo() ||
-			config.chain_spec.is_versi()
-		{
-			// it's a testnet that's in flux, finality has stalled sometimes due
-			// to operational issues and it's annoying to slow down block
-			// production to 1 block per hour.
-			backoff.max_interval = 10;
-		}
-
-		Some(backoff)
+        Some(backoff) 
 	};
 
-	let disable_grandpa = config.disable_grandpa;
+    let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
 	let basics = new_partial_basics::<RuntimeApi, ExecutorDispatch>(
@@ -595,12 +487,13 @@ where
 	let chain_spec = config.chain_spec.cloned_box();
 
 	let local_keystore = basics.keystore_container.local_keystore();
+	let auth = role.is_authority(); 
 
 	let pvf_checker_enabled = role.is_authority();
 
-	let select_chain = LongestChain::new(basics.backend.clone());
+    let select_chain = sc_consensus::LongestChain::new(basics.backend.clone());
 
-	let service::PartialComponents::<_, _, _, _, _> {
+    let service::PartialComponents {
 		client,
 		backend,
 		mut task_manager,
@@ -609,13 +502,13 @@ where
 		import_queue,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
-	} = new_partial::<RuntimeApi, ExecutorDispatch>(
+	} = new_partial::<RuntimeApi, ExecutorDispatch, _>(
 		&mut config,
 		basics,
 		select_chain,
 	)?;
-
-	let shared_voter_state = rpc_setup;
+    
+    let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
 	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
@@ -629,13 +522,14 @@ where
 		.extra_sets
 		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
-	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
+    let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
+		// grandpa_link.shared_authority_set().clone(),
 		import_setup.1.shared_authority_set().clone(),
-		grandpa_hard_forks,
+		Vec::default(),
 	));
 
-	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
+    let (network, system_rpc_tx, tx_handler_controller, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -646,7 +540,7 @@ where
 			warp_sync: Some(warp_sync),
 		})?;
 
-	if config.offchain_worker.enabled {
+    if config.offchain_worker.enabled {
 		let offchain_workers = Arc::new(sc_offchain::OffchainWorkers::new_with_options(
 			client.clone(),
 			sc_offchain::OffchainWorkerOptions { enable_http_requests: false },
@@ -666,30 +560,7 @@ where
 		);
 	}
 
-	let candidate_validation_config = CandidateValidationConfig {
-		artifacts_cache_path: config
-			.database
-			.path()
-			.ok_or(Error::DatabasePathRequired)?
-			.join("pvf-artifacts"),
-		program_path: match program_path {
-			None => std::env::current_exe()?,
-			Some(p) => p,
-		},
-	};
-
-	let chain_selection_config = ChainSelectionConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: Default::default(),
-		stagnant_check_mode: chain_selection_subsystem::StagnantCheckMode::PruneOnly,
-	};
-
-	let dispute_coordinator_config = DisputeCoordinatorConfig {
-		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
-	};
-
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
+    let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
@@ -703,7 +574,7 @@ where
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	if let Some(hwbench) = hwbench {
+    if let Some(hwbench) = hwbench {
 		sc_sysinfo::print_hwbench(&hwbench);
 
 		if let Some(ref mut telemetry) = telemetry {
@@ -716,15 +587,10 @@ where
 		}
 	}
 
-	let (block_import, link_half, babe_link) = import_setup;
-
+    let (block_import, link_half, babe_link) = import_setup;
 	let spawner = task_manager.spawn_handle();
-	// Cannot use the `RelayChainSelection`, since that'd require a setup _and running_ overseer
-	// which we are about to setup.
-	let active_leaves =
-		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
-	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
+    let authority_discovery_service = if auth {
 		use futures::StreamExt;
 		use sc_network::Event;
 		use sc_network_common::service::NetworkEventStream;
@@ -766,12 +632,10 @@ where
 		None
 	};
 
-	// if local_keystore.is_none() {
-	// 	gum::info!("Cannot run as validator without local keystore.");
-	// }
+    let maybe_params =
+		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
-
-	if role.is_authority() {
+    if role.is_authority() {
 		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
@@ -803,7 +667,7 @@ where
 							slot_duration,
 						);
 
-					Ok((slot, timestamp, parachain))
+					Ok((slot, timestamp))
 				}
 			},
 			force_authoring,
@@ -818,25 +682,12 @@ where
 		task_manager.spawn_essential_handle().spawn_blocking("babe", None, babe);
 	}
 
-	// if the node isn't actively participating in consensus then it doesn't
+    // if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore_opt =
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
-
-	if is_offchain_indexing_enabled {
-		task_manager.spawn_handle().spawn_blocking(
-			"mmr-gadget",
-			None,
-			MmrGadget::start(
-				client.clone(),
-				backend.clone(),
-				sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
-				),
-			);
-		}
-
-	let config = grandpa::Config {
+    let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		// Grandpa performance can be improved a bit by tuning this parameter, see:
 		// https://github.com/paritytech/polkadot/issues/5464
@@ -850,68 +701,13 @@ where
 		protocol_name: grandpa_protocol_name,
 	};
 
-	let enable_grandpa = !disable_grandpa;
-	if enable_grandpa {
-		// start the full GRANDPA voter
-		// NOTE: unlike in substrate we are currently running the full
-		// GRANDPA voter protocol for all full nodes (regardless of whether
-		// they're validators or not). at this point the full voter should
-		// provide better guarantees of block and vote data availability than
-		// the observer.
-
-		// add a custom voting rule to temporarily stop voting for new blocks
-		// after the given pause block is finalized and restarting after the
-		// given delay.
-		let mut builder = grandpa::VotingRulesBuilder::default();
-
-		#[cfg(not(feature = "malus"))]
-		let _malus_finality_delay = None;
-
-		if let Some(delay) = _malus_finality_delay {
-			info!(?delay, "Enabling malus finality delay",);
-			builder = builder.add(grandpa::BeforeBestBlockBy(delay));
-		};
-
-		let voting_rule = match grandpa_pause {
-			Some((block, delay)) => {
-				info!(
-					block_number = %block,
-					delay = %delay,
-					"GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
-					block,
-					delay,
-				);
-
-				builder.add(grandpa_support::PauseAfterBlockFor(block, delay)).build()
-			},
-			None => builder.build(),
-		};
-
-		let grandpa_config = grandpa::GrandpaParams {
-			config,
-			link: link_half,
-			network: network.clone(),
-			voting_rule,
-			prometheus_registry: prometheus_registry.clone(),
-			shared_voter_state,
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-		};
-
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"grandpa-voter",
-			None,
-			grandpa::run_grandpa_voter(grandpa_config)?,
-		);
-	}
-
-	network_starter.start_network();
-
-	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
+    let enable_grandpa = !disable_grandpa;
+    network_starter.start_network();
+    Ok(NewFull { task_manager, client, network, rpc_handlers, backend })
 }
 
-#[cfg(feature = "full-node")]
 macro_rules! chain_ops {
-	($config:expr, $jaeger_agent:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
+	($config:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
 		let telemetry_worker_handle = $telemetry_worker_handle;
 		let mut config = $config;
 		let basics = new_partial_basics::<$scope::RuntimeApi, $executor>(
@@ -934,7 +730,6 @@ macro_rules! chain_ops {
 }
 
 /// Builds a new object suitable for chain operations.
-#[cfg(feature = "full-node")]
 pub fn new_chain_ops(
 	mut config: &mut Configuration,
 ) -> Result<
@@ -947,16 +742,12 @@ pub fn new_chain_ops(
 	Error,
 > {
 	config.keystore = service::config::KeystoreConfig::InMemory;
+    let telemetry_worker_handle = None;
 
-	let telemetry_worker_handle = None;
-
-
-	#[cfg(feature = "kumandra-native")]
 	{
 		return chain_ops!(config, telemetry_worker_handle; kumandra_runtime, KumandraExecutorDispatch, Kumandra)
 	}
-	#[cfg(not(feature = "kumandra-native"))]
-	Err(Error::NoRuntime)
+
 }
 
 /// Build a full node.
@@ -967,134 +758,20 @@ pub fn new_chain_ops(
 /// `overseer_enable_anyways` always enables the overseer, based on the provided `OverseerGenerator`,
 /// regardless of the role the node has. The relay chain selection (longest or disputes-aware) is
 /// still determined based on the role of the node. Likewise for authority discovery.
-#[cfg(feature = "full-node")]
+
 pub fn build_full(
 	config: Configuration,
-	grandpa_pause: Option<(u32, u32)>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-	malus_finality_delay: Option<u32>,
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
-	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_versi()
-	{
-		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
+
+    {
+		return new_full::<kumandra_runtime::RuntimeApi, KumandraExecutorDispatch>(
 			config,
-			grandpa_pause,
 			telemetry_worker_handle,
 			None,
-			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Rococo))
-	}
-
-	#[cfg(feature = "kumandra-native")]
-	{
-		return new_full::<kumandra_runtime::RuntimeApi, KumandraExecutorDispatch, _>(
-			config,
-			grandpa_pause,
-			telemetry_worker_handle,
-			None,
-			malus_finality_delay,
-			hwbench,
-		)
-		.map(|full| full.with_client(Client::Polkadot))
-	}
-
-	#[cfg(not(feature = "kumandra-native"))]
-	Err(Error::NoRuntime)
-}
-
-/// Reverts the node state down to at most the last finalized block.
-///
-/// In particular this reverts:
-/// - `ApprovalVotingSubsystem` data in the parachains-db;
-/// - `ChainSelectionSubsystem` data in the parachains-db;
-/// - Low level Babe and Grandpa consensus data.
-#[cfg(feature = "full-node")]
-pub fn revert_backend(
-	client: Arc<Client>,
-	backend: Arc<FullBackend>,
-	blocks: BlockNumber,
-	config: Configuration,
-) -> Result<(), Error> {
-	let best_number = client.info().best_number;
-	let finalized = client.info().finalized_number;
-	let revertible = blocks.min(best_number - finalized);
-
-	if revertible == 0 {
-		return Ok(())
-	}
-
-	let number = best_number - revertible;
-	let hash = client.block_hash_from_id(&BlockId::Number(number))?.ok_or(
-		sp_blockchain::Error::Backend(format!(
-			"Unexpected hash lookup failure for block number: {}",
-			number
-		)),
-	)?;
-
-	// Revert Substrate consensus related components
-	client.execute_with(RevertConsensus { blocks, backend })?;
-
-	Ok(())
-}
-
-fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
-	let config = chain_selection_subsystem::Config {
-		col_data: parachains_db::REAL_COLUMNS.col_chain_selection_data,
-		stagnant_check_interval: chain_selection_subsystem::StagnantCheckInterval::never(),
-		stagnant_check_mode: chain_selection_subsystem::StagnantCheckMode::PruneOnly,
-	};
-
-	let chain_selection = chain_selection_subsystem::ChainSelectionSubsystem::new(config, db);
-
-	chain_selection
-		.revert_to(hash)
-		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))
-}
-
-fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
-	let config = approval_voting_subsystem::Config {
-		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
-		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
-		slot_duration_millis: Default::default(),
-	};
-
-	let approval_voting = approval_voting_subsystem::ApprovalVotingSubsystem::with_config(
-		config,
-		db,
-		Arc::new(sc_keystore::LocalKeystore::in_memory()),
-		Box::new(consensus_common::NoNetwork),
-		approval_voting_subsystem::Metrics::default(),
-	);
-
-	approval_voting
-		.revert_to(hash)
-		.map_err(|err| sp_blockchain::Error::Backend(err.to_string()))
-}
-
-struct RevertConsensus {
-	blocks: BlockNumber,
-	backend: Arc<FullBackend>,
-}
-
-impl ExecuteWithClient for RevertConsensus {
-	type Output = sp_blockchain::Result<()>;
-
-	fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
-	where
-		<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-		Backend: sc_client_api::Backend<Block> + 'static,
-		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Api: kumandra_client::RuntimeApiCollection<StateBackend = Backend::State>,
-		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
-	{
-		// Revert consensus-related components.
-		// The operations are not correlated, thus call order is not relevant.
-		babe::revert(client.clone(), self.backend, self.blocks)?;
-		grandpa::revert(client, self.blocks)?;
-		Ok(())
+		.map(|full| full.with_client(Client::Kumandra))
 	}
 }

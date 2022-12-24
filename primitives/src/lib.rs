@@ -70,3 +70,7 @@ pub type BlockId = generic::BlockId<Block>;
 
 /// poc memory
 pub type GIB = u64;
+
+// Account public
+pub type AccountPublic = <Signature as Verify>::Signer;
+

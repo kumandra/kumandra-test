@@ -1,12 +1,8 @@
 [package]
 name = "kumandra-service"
 version = "1.0.0"
-authors = ["Kumandra"]
+authors = ["Selendra <info@selendra.org>"]
 edition = "2021"
-# rust-version = "1.60"
-# version.workspace = true
-# authors.workspace = true
-# edition.workspace = true
 
 [dependencies]
 # Substrate Client
@@ -14,7 +10,6 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
-mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
@@ -31,7 +26,7 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polka
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.34" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.34" }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.34" }
 
 # Substrate Primitives
@@ -68,7 +63,6 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.21"
 hex-literal = "0.3.4"
-gum = { package = "tracing-gum", path = "../gum/" }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 thiserror = "1.0.31"
@@ -80,68 +74,45 @@ async-trait = "0.1.57"
 lru = "0.8"
 
 # Kumandra
+# kumandra-client = { path = "../client", default-features = false, optional = true }
+kumandra-client = { path = "../client" }
 kumandra-primitives = { path = "../../primitives" }
-kumandra-node-primitives = { path = "../primitives" }
-polkadot-rpc = { path = "../../rpc" }
+# polkadot-node-primitives = { path = "../primitives" }
+kumandra-rpc = { path = "../rpc" }
 
 # Kumandra Runtimes
-kumandra-runtime = { path = "../../runtime/", optional = true }
+kumandra-runtime = { path = "../../runtime" }
 
+[dev-dependencies]
+# polkadot-test-client = { path = "../test/client" }
+# polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+env_logger = "0.9.0"
+log = "0.4.17"
+assert_matches = "1.5.0"
+tempfile = "3.2"
+
+# [features]
+# default = ["db", "full-node", "polkadot-native"]
 
 [features]
-default = ["db", "full-node", "kumandra-native"]
+default = ["db"]
 
 db = [
 	"service/rocksdb"
 ]
 
-full-node = [ 
-# 	"polkadot-node-core-av-store",
-# 	"polkadot-node-core-approval-voting",
-# 	"polkadot-availability-bitfield-distribution",
-# 	"polkadot-availability-distribution",
-# 	"polkadot-availability-recovery",
-	"kumandra-client",
-# 	"polkadot-collator-protocol",
-# 	"polkadot-dispute-distribution",
-# 	"polkadot-gossip-support",
-# 	"polkadot-network-bridge",
-# 	"polkadot-node-collation-generation",
-# 	"polkadot-node-core-backing",
-# 	"polkadot-node-core-bitfield-signing",
-# 	"polkadot-node-core-candidate-validation",
-# 	"polkadot-node-core-chain-api",
-# 	"polkadot-node-core-chain-selection",
-# 	"polkadot-node-core-dispute-coordinator",
-# 	"polkadot-node-core-provisioner",
-# 	"polkadot-node-core-runtime-api",
-# 	"polkadot-statement-distribution",
-# 	"polkadot-approval-distribution",
-# 	"polkadot-node-core-pvf-checker",
-# 	"kvdb-rocksdb",
-# 	"parity-db",
-]
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
-kumandra-native = [ "kumandra-runtime", "kumandra-runtime-constants", "kumandra-client/kumandra" ]
+# runtime-benchmarks = [
+# 	"kumandra-runtime?/runtime-benchmarks",
+# 	"service/runtime-benchmarks",
+# ]
+# try-runtime = [
+# 	"kumandra-runtime?/try-runtime",
+# ]
+# fast-runtime = [
+# 	"kumandra-runtime?/fast-runtime",
+# ]
 
-runtime-benchmarks = [
-	"kumandra-runtime?/runtime-benchmarks",
-
-	"service/runtime-benchmarks",
-]
-try-runtime = [
-	"kumandra-runtime?/try-runtime",
-]
-fast-runtime = [
-	"kumandra-runtime?/fast-runtime",
-]
-
-malus = ["full-node"]
-runtime-metrics = [
-	"kumandra-client/runtime-metrics",
-	# "kumandra-runtime?/runtime-metrics",
-	# "kumandra-runtime-parachains/runtime-metrics"
-]

@@ -33,7 +33,7 @@ use sp_runtime::{
 use sp_storage::{ChildInfo, StorageData, StorageKey};
 use std::sync::Arc;
 
-pub mod benchmarking;
+// pub mod benchmarking;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
@@ -45,7 +45,7 @@ pub type FullClient<RuntimeApi, ExecutorDispatch> =
 )))]
 compile_error!("at least one runtime feature must be enabled");
 
-/// The native executor instance for Kumandra.
+/// The native executor instance for Polkadot.
 #[cfg(feature = "kumandra")]
 pub struct KumandraExecutorDispatch;
 
@@ -61,8 +61,6 @@ impl sc_executor::NativeExecutionDispatch for KumandraExecutorDispatch {
 		kumandra_runtime::native_version()
 	}
 }
-
-
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
@@ -71,7 +69,6 @@ pub trait RuntimeApiCollection:
 	+ sp_finality_grandpa::GrandpaApi<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ sp_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash, BlockNumber>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
@@ -90,7 +87,6 @@ where
 		+ sp_finality_grandpa::GrandpaApi<Block>
 		+ sp_block_builder::BlockBuilder<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-		+ sp_mmr_primitives::MmrApi<Block, <Block as BlockT>::Hash, BlockNumber>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 		+ sp_api::Metadata<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
@@ -210,7 +206,7 @@ pub(crate) use with_client;
 #[derive(Clone)]
 pub enum Client {
 	#[cfg(feature = "kumandra")]
-	kumandra(arc<fullclient<kumandra_runtime::RuntimeApi, KumandraExecutorDispatch>>),
+	Kumandra(Arc<FullClient<kumandra_runtime::RuntimeApi, KumandraExecutorDispatch>>),
 }
 
 impl ClientHandle for Client {

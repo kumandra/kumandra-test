@@ -245,3 +245,5 @@ try-runtime = [
 	"pallet-transaction-payment/try-runtime",
 	"pallet-vesting/try-runtime",
 ]
+
+fast-runtime = []
