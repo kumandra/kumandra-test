@@ -20,7 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 512.
 #![recursion_limit = "512"]
 
-
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
@@ -330,9 +329,8 @@ impl pallet_proxy::Config for Runtime {
 }
 
 impl pallet_storage::Config for Runtime {
-	
 	type StakingCurrency = Balances;
-    type RuntimeEvent = RuntimeEvent;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
 }
 
@@ -347,7 +345,6 @@ parameter_types! {
 }
 
 impl pallet_poc_staking::Config for Runtime {
-
 	type RuntimeEvent = RuntimeEvent;
 
 	type StakingCurrency = Balances;
@@ -360,7 +357,7 @@ impl pallet_poc_staking::Config for Runtime {
 
 	type ChillDuration = ChillDuration;
 
-    type StakingLockExpire = StakingLockExpire;
+	type StakingLockExpire = StakingLockExpire;
 
 	type StakingSlash = ();
 
@@ -384,7 +381,6 @@ parameter_types! {
 }
 
 impl pallet_poc::Config for Runtime {
-
 	type GenesisBaseTarget = GenesisBaseTarget;
 
 	type PocAddOrigin = ();
@@ -395,11 +391,11 @@ impl pallet_poc::Config for Runtime {
 
 	type MaxDeadlineValue = MaxDeadlineValue;
 
-    type RuntimeEvent = RuntimeEvent;
+	type RuntimeEvent = RuntimeEvent;
 
-    type BlockTime = ();
-    
-    type CapacityPrice = ();
+	type BlockTime = ();
+
+	type CapacityPrice = ();
 
 	type WeightInfo = pallet_poc::weights::SubstrateWeight<Runtime>;
 }
