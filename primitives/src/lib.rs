@@ -53,7 +53,6 @@ pub type Hash = sp_core::H256;
 /// Index of a transaction in the chain. 32-bit should be plenty.
 pub type Nonce = u32;
 
-
 /// A timestamp: milliseconds since the unix epoch.
 /// `u64` is enough to represent a duration of half a billion years, when the
 /// time scale is milliseconds.
@@ -71,6 +70,5 @@ pub type BlockId = generic::BlockId<Block>;
 /// poc memory
 pub type GIB = u64;
 
-// Account public
+/// Account public
 pub type AccountPublic = <Signature as Verify>::Signer;
-

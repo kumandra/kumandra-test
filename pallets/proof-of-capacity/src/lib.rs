@@ -15,8 +15,8 @@
 // along with Kumandra. If not, see <http://www.gnu.org/licenses/>.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-
 pub use pallet::*;
+pub use pallet_poc_staking::traits::PocHandler;
 
 pub mod weights;
 pub use weights::WeightInfo;
@@ -27,7 +27,6 @@ use scale_info::TypeInfo;
 
 use frame_support::inherent::Vec;
 use scale_info::prelude::vec;
-
 
 use frame_support::traits::Get;
 use sp_std::result;
@@ -874,5 +873,11 @@ impl<T: Config> Pallet<T> {
 	fn get_current_base_target() -> u64 {
 		let ti = Self::target_info();
 		ti.iter().last().unwrap().base_target
+	}
+}
+
+impl<T: Config> PocHandler<T::AccountId> for Pallet<T> {
+	fn remove_history(miner: T::AccountId) {
+		<History<T>>::remove(miner);
 	}
 }

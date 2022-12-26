@@ -18,11 +18,13 @@
 
 pub use pallet::*;
 
-use scale_info::prelude::vec::Vec;
 use scale_info::prelude::vec;
+use scale_info::prelude::vec::Vec;
 pub mod traits;
 pub mod weights;
 pub use weights::WeightInfo;
+
+use crate::traits::PocHandler;
 
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
@@ -122,6 +124,7 @@ pub mod pallet {
 
 		type RecommendMaxNumber: Get<usize>;
 
+		type PocHandler: PocHandler<Self::AccountId>;
 
 		type ChillDuration: Get<Self::BlockNumber>;
 
@@ -460,7 +463,6 @@ pub mod pallet {
 			ensure!(disk != 0 as GIB, Error::<T>::PlotSizeIsZero);
 
 			ensure!(Self::is_chill_time(), Error::<T>::ChillTime);
-
 
 			let now = Self::now();
 
