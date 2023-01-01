@@ -328,11 +328,11 @@ impl pallet_proxy::Config for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-// impl pallet_storage::Config for Runtime {
-// 	type StakingCurrency = Balances;
-// 	type RuntimeEvent = RuntimeEvent;
-// 	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
-// }
+impl pallet_storage::Config for Runtime {
+	type StakingCurrency = Balances;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_storage::weights::SubstrateWeight<Runtime>;
+}
 
 // parameter_types! {
 // 	pub const ChillDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS;
@@ -1332,7 +1332,7 @@ construct_runtime!(
 		// Kumandra Pallets
 		// PocStaking: pallet_poc_staking,
 		// PoC: pallet_poc,
-		// Storage: pallet_storage,
+		Storage: pallet_storage,
 
 	}
 );
